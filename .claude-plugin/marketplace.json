@@ -1,0 +1,13 @@
+{
+  "name": "thinkwise",
+  "owner": { "name": "Thinkwise Software" },
+  "metadata": { "description": "Claude Code plugins for Thinkwise Software Factory." },
+  "plugins": [
+    {
+      "name": "thinkwise-sf",
+      "source": "./",
+      "description": "All Thinkwise Software Factory skills: data model, views, control procedures, tasks, process flows, cubes, menus, deployment and more.",
+      "category": "development"
+    }
+  ]
+}

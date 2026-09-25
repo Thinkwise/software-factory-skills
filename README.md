@@ -6,30 +6,68 @@ These skills are intended to be used together with an MCP connector that provide
 
 ## What's in here
 
-Each skill lives in its own folder and contains a `SKILL.md` file describing what it does and when Claude should use it, plus any supporting reference material it needs.
+This repo is a Claude Code **plugin marketplace** (`thinkwise`) that ships one plugin, `thinkwise-sf`, containing all the skills. Each skill lives in its own folder under [`skills/`](skills/) and contains a `SKILL.md` file describing what it does and when Claude should use it, plus any supporting reference material it needs.
 
 ## Installing the skills
 
-Claude Code looks for skills in two places:
+### As a plugin (recommended)
+
+In Claude Code, run:
+
+```
+/plugin marketplace add Thinkwise/software-factory-skills
+/plugin install thinkwise-sf@thinkwise
+```
+
+To pull in new or updated skills later:
+
+```
+/plugin marketplace update thinkwise
+```
+
+### Rolling it out to a team
+
+To have everyone who works in a given project prompted to install the plugin, add this to that project's `.claude/settings.json`:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "thinkwise": {
+      "source": { "source": "github", "repo": "Thinkwise/software-factory-skills" }
+    }
+  },
+  "enabledPlugins": {
+    "thinkwise-sf@thinkwise": true
+  }
+}
+```
+
+### Manual install (fallback)
+
+You can also copy (or symlink) individual skill folders from [`skills/`](skills/) into one of Claude Code's skill locations, keeping the folder name intact:
 
 | Scope | Path | Applies to |
 |---|---|---|
 | **Personal** | `~/.claude/skills/<skill-name>/` | All your projects |
 | **Project** | `<your-project>/.claude/skills/<skill-name>/` | Just that one project |
 
-To use these skills, copy (or symlink) each skill folder from this repo into one of those locations, keeping the folder name intact, e.g.:
-
 ```
-~/.claude/skills/thinkwise-software-factory-cubes/SKILL.md
-~/.claude/skills/thinkwise-software-factory-tasks/SKILL.md
+~/.claude/skills/thinkwise-sf-cubes/SKILL.md
+~/.claude/skills/thinkwise-sf-tasks/SKILL.md
 ...
 ```
 
-- Use `~/.claude/skills/` if you want these skills available across **all** your projects.
-- Use `<project>/.claude/skills/` if you only want them available in a **specific** project (useful if you want to commit them alongside a specific Software Factory repo).
+If you installed skills manually before, remove those copies once you install the plugin so you don't end up with duplicates.
 
-No restart is required — Claude Code picks up new skills automatically the next time it evaluates which skills are relevant, or when you list available skills.
+For claude.ai, each skill is also available as a zip in [`zip files/`](zip%20files/) for upload.
 
 ## Using a skill
 
 Most of these skills are reference guides Claude invokes automatically based on their `description` when your request matches (e.g. asking it to create a cube, a process flow, or a control procedure). You generally don't need to invoke them by name — just describe what you want to do in your Software Factory model, and Claude will pull in the relevant skill before making changes.
+
+When installed as a plugin, skills are namespaced if you invoke them explicitly, e.g. `/thinkwise-sf:thinkwise-sf-cubes`.
+
+## Contributing
+
+- Add a new skill as a new folder under `skills/` with a `SKILL.md`.
+- Bump `version` in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json) when you change or add skills, so installed users receive the update.
