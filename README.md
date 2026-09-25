@@ -12,14 +12,7 @@ This repo is a Claude Code **plugin marketplace** (`thinkwise`) that ships one p
 
 ### As a plugin (recommended)
 
-In Claude Code, run:
-
-```
-/plugin marketplace add Thinkwise/software-factory-skills
-/plugin install thinkwise-sf@thinkwise
-```
-
-These are Claude Code slash commands: type them in a Claude Code session, not in your shell. From a terminal (PowerShell, bash) use the CLI equivalent instead:
+From a terminal (PowerShell, bash) use the Claude CLI commands to add this plugin:
 
 ```
 claude plugin marketplace add Thinkwise/software-factory-skills
@@ -29,7 +22,7 @@ claude plugin install thinkwise-sf@thinkwise
 To pull in new or updated skills later:
 
 ```
-/plugin marketplace update thinkwise
+claude plugin marketplace update thinkwise
 ```
 
 ### Rolling it out to a team
