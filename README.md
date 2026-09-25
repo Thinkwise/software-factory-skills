@@ -19,6 +19,13 @@ In Claude Code, run:
 /plugin install thinkwise-sf@thinkwise
 ```
 
+These are Claude Code slash commands: type them in a Claude Code session, not in your shell. From a terminal (PowerShell, bash) use the CLI equivalent instead:
+
+```
+claude plugin marketplace add Thinkwise/software-factory-skills
+claude plugin install thinkwise-sf@thinkwise
+```
+
 To pull in new or updated skills later:
 
 ```
