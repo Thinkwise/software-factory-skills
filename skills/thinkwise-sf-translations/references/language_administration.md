@@ -85,9 +85,10 @@ attempting this recipe first, since it resolved what previously looked unrecover
 `task_mark_transl_object_transl_approved` (zero params) approves it; disapproving requires
 `task_mark_transl_object_transl_disapproved` with a mandatory `feedback` string — there is no way to
 disapprove without leaving a reason. Treat `approval_status` as the gate for whether a set of
-translations is safe to consider final, especially before a merge — an edited, previously-approved
-translation resets to `not_yet_approved` (per platform docs; not independently re-verified live in
-this session), so a stale "approved" count is a real risk signal, not just paperwork.
+translations is safe to consider final, especially before a merge — editing any text field of a
+previously-approved `transl_object_transl` row resets it to `not_yet_approved` (`0`) in the same write,
+so when correcting a translation you intend to keep approved, set `approval_status = 1` in that same
+write. A stale "approved" count is a real risk signal, not just paperwork.
 
 **Fallback language.** Referenced in platform documentation (used when a user's own language has no
 translations in a given application) but its storage location was **not** found during live

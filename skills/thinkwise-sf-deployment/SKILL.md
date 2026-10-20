@@ -86,6 +86,16 @@ A related bound task, `task_add_job_to_do_complete_creation_checks` (same entity
 parameters beyond the bound key), was found via metadata only and not exercised — likely a dry-run
 "can this job run" check, but confirm behavior live before depending on it.
 
+**If the complete-creation task can't be parameterized** (its staged task refuses property writes,
+leaving mandatory flags like `sync_target_iam_id` unset), run the stages as separate jobs. For the
+four-job recipe (generate definition → validate → generate code → execute source code), how to bind
+the validate and generate-code tasks, monitoring entities per job, `upgrade_method` choice, and reading
+validation errors, read `references/job_pipeline.md`.
+
+**Code generation uses the last generated definition.** After any model change, regenerate the
+definition before generating and deploying code; otherwise procedure signatures and the GUI disagree at
+runtime ("expects parameter '@x', which was not supplied").
+
 ## Ask, don't default
 
 `error_handling`/`generate_definition_error_handling`, `debug`, and every stage-toggle in the
@@ -143,9 +153,8 @@ this when a step fails to get the actual database/generation error rather than j
 
 A parallel `definition_validation_overview` entity (key `job_id, model_id, branch_id`) exists for
 validation with its own status enum (same 9 values as generation) and a
-`definition_validation_log` detail; how a standalone validation job gets *started* wasn't
-discovered this session (validation inside Tier 1/2 is driven by the generation/complete-creation
-job itself) — treat as read/monitoring-only until verified.
+`definition_validation_log` detail. Start a standalone validation with `task_add_job_to_validate_all`
+(see `references/job_pipeline.md`).
 
 ## Resolving a paused step (`wait_for_user`)
 

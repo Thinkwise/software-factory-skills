@@ -35,6 +35,19 @@ parameter that type supports. **Staging an `add` on any of these child entities 
 `process_action_id`), then stage an `edit` against its full composite key (including
 `tab_id`/`col_id`/`input_parmtr_id`/`task_parmtr_id` as applicable) instead.
 
+- Every action also gets one placeholder row whose key values are `$` (a label row for the designer);
+  skip it.
+- Rows are **not** auto-mapped by name: a task output `robot_id` stays unmapped even when a variable
+  `robot_id` exists. Edit every row (`process_variable_id`, plus `assignment_method = variable` on
+  inputs).
+- Task actions: `process_action_modeler_task_parmtr_input` / `_task_parmtr_output`, keyed by
+  `task_id, task_parmtr_id`. Send user notification and other fixed-parameter types:
+  `process_action_modeler_fixed_input`, keyed by `input_parmtr_id` (`assignment_method =
+  literal_constant` plus `constant_value` or `constant_enum_value` for literals).
+- Publish message actions: `process_action_modeler_message_broker_message_input`. Editing these rows
+  (even reading a single row by key) fails with a bad-request error through the API — map them in the
+  Software Factory UI and say so; see `thinkwise_sf_message_brokers`.
+
 **Worked pattern — filtering a popup to the row that triggered the flow** (the shape behind
 "double-click a row → modal popup of related, filtered records"):
 

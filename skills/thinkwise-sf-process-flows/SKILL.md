@@ -78,8 +78,10 @@ different trigger — revise the outline and re-confirm rather than patching aro
 
 `process_action`, `process_step`, and `process_flow_schedule` are **weak entities** — stage them with
 `parent_entity_set: "process_flow"` and `parent_key: {model_id, branch_id, process_flow_id}`.
-`process_variable` stages flat (no parent needed — its detail nav target isn't independently
-addressable through this connector, so pass the full key directly).
+`process_variable` is added through the entity-set variant `process_variable.process_variable_modeler`
+with parent `process_flow`; a plain add on `process_variable` asks for an unrelated parent and fails.
+Adding `process_flow` under `branch` offers two detail navigations (process flow and sub flow) —
+pick the plain process-flow one.
 `process_action_start_object_available` **cannot be written through this API at all**, but this
 doesn't block anything in practice — see "Starting points" below for why.
 
@@ -196,7 +198,7 @@ mistake:
 
 1. **The action's own `use_processes` flag** ("Use process procedure") opts that specific
    `process_action` into the `PROCESSES` code group — a control procedure assigned here runs as part
-   of the action itself (see "Decision as a code-only step" above for the most common use of this).
+   of the action itself (see "Decision as a code-only step" in `references/flow_building_blocks.md` for the most common use of this).
 2. **The far more common pattern**: an `execute_task`/`execute_system_task` action simply calls a task
    whose own logic type is **Stored procedure**, and the *task's* control procedure (in the `TASKS`
    code group) is where the real work happens — parsing a connector's response, writing rows, etc.

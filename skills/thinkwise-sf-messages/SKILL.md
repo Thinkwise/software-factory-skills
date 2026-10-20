@@ -22,8 +22,7 @@ behavior. It is **not** the same thing as:
   ordinary tables in your data model, not `msg`.
 - Software Factory validation findings (`validation_msg`) — the modeler's own lint output, unrelated.
 - Message-broker payloads (`message_broker`/`message_broker_message`, MQTT etc.) — integration data on
-  the wire, not UI text. See `thinkwise_sf_process_flows`'s message-broker action types
-  for that.
+  the wire, not UI text. See `thinkwise_sf_message_brokers`.
 - Server logs and technical diagnostics not modeled under **User interface > Messages** — use
   structured server-side logging for those instead.
 

@@ -182,9 +182,9 @@ The generated object's name is the bare `subroutine_id`. Its body is a control-p
 the `PROCEDURES`/`FUNCTIONS`/`TABLE_VALUED_FUNCTIONS` code group, generated the same two-task way as
 any other control procedure.
 
-**Known gap:** a brand-new *standalone* subroutine (no table/view/task to hang off) may never get its
-`prog_object` placeholder materialized through the API — author it fully, then treat the generate as
-a manual Software Factory step and say so.
+A brand-new *standalone* subroutine gets its `prog_object` placeholder from **Generate code group**
+bound to its own control procedure; check that the row exists, and only if it doesn't, treat the
+generate as a manual Software Factory step and say so.
 
 **Role rights are required for a caller to execute it** — a missing right fails at runtime, not at
 generation.
@@ -237,9 +237,8 @@ output-parameter-explosion, and the rest).
   `FUNCTIONS`/`TABLE_VALUED_FUNCTIONS`/`PROCEDURES` code group, `func_`/`proc_` `prog_object_id` prefix,
   bare `subroutine_id` as the real generated object name, Static assignment,
   `program_object_item`/`control_proc_type = 1`.
-- A brand-new *standalone* subroutine's `prog_object` placeholder may not materialize through
-  `task_generate_code_grp` — verified gap; be ready to say a manual Software Factory generate pass is
-  needed, rather than retrying alternate API paths indefinitely.
+- After generating the code group, confirm the subroutine's `prog_object` row exists before assigning;
+  if it's missing, say a manual Software Factory generate pass is needed rather than retrying API paths.
 - Set `generation_order_no` so a subroutine that calls another subroutine (especially function-calls-
   function) generates after its dependency — functions don't get SQL Server's deferred-name-resolution
   leniency that procedures do.

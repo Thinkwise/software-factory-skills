@@ -9,7 +9,8 @@ A **Web Connection** is a modeled, reusable definition of an external HTTP(S) AP
 authentication scheme (`web_connection`), with one or more named **endpoints** underneath it
 (`web_connection_endpoint` — method, path, body). It replaces the legacy `http_connector` process
 action, which re-enters URL/method/headers/auth on every single process action with no reuse, no
-override mechanism, and no built-in response parsing.
+override mechanism, and no built-in response parsing. For event-style integration over MQTT
+(publish/subscribe instead of request/response), see `thinkwise_sf_message_brokers`.
 
 Follow the connector's standard discovery→act flow; never guess entity/field/enum names — confirm
 them via `get_entity_definition` first. **Two domains are involved, and mixing them up is the most

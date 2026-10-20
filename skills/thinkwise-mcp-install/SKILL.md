@@ -20,7 +20,9 @@ Ask, in order, waiting for each answer before asking the next:
    below (add, get, config lookup, `/mcp` selection) — do not let the add
    command use a different name than later steps reference.
 2. **MCP endpoint URL** — the full transport URL (e.g.
-   `https://<host>/<path>/mcp`).
+   `https://<host>/<path>/mcp`). If the endpoint is a locally hosted
+   Indicium that is only served over `http://`, set up HTTPS first (see
+   Troubleshooting).
 3. **OAuth client ID.**
 4. **OAuth client secret** — tell the user it will only be exported into the
    current shell session as an env var, never echoed, logged, or written to
@@ -201,3 +203,11 @@ correctly configured OAuth-protected MCP endpoint answers an unauthenticated
 POST with `401` and a `WWW-Authenticate` header; a plain `404` (especially
 an IIS error page) usually means the path is not served over that scheme at
 all. Retry the same URL over `https://` before assuming the path is wrong.
+
+**If the endpoint is local/self-hosted, a client reports a certificate
+error, or `openid-configuration` returns 500**, read
+`references/local_https_and_oauth.md` (symptom→layer table, CA-plus-leaf
+localhost certificate recipe and `scripts/New-LocalhostCert.ps1`,
+`NODE_EXTRA_CA_CERTS`, curl `--ssl-no-revoke`, OpenID signing-certificate
+500 and the app-pool Load User Profile fix with
+`scripts/Enable-IndiciumUserProfile.ps1`, `DataSecuritySettings` migration).

@@ -66,7 +66,7 @@ requires a live user session.
 | `email_connector` | 625 | Sends email via a configured email provider |
 | `appl_connector` | 580 | Calls another Thinkwise application |
 | OAuth connector actions | 560/570/575 | Handle OAuth token flows for a configured OAuth server |
-| `publish_message` | 950 | Publishes a message onto a configured message broker |
+| `publish_message` | 950 | Publishes a message onto a configured message broker — see `thinkwise_sf_message_brokers` |
 
 ## Files (**sys**)
 

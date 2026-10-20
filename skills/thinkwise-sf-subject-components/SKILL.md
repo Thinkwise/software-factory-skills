@@ -134,7 +134,8 @@ instructions, and pitfalls), read `references/form.md`.
 
 # 4. Grid
 
-For Grid setup (tab/col-level `grid_*` fields, step-by-step instructions, and pitfalls), read
+For Grid setup (tab/col-level `grid_*` fields, step-by-step instructions, pitfalls, and the inline
+action bar for task buttons in the Grid — also read it for "add tasks to my grid"), read
 `references/grid.md`.
 
 ---
@@ -164,6 +165,8 @@ instructions, and pitfalls), read `references/drag_drop.md`.
   header groups (`grid_field_in_next_grp`, cosmetic) from runtime row grouping
   (`default_sort`/`grp_until`/`grp_box_visibility`, structural); aggregate only same-unit measures.
   `task_copy_form_to_grid`/`task_copy_grid_to_form` are the fast path to keep a Grid and Form in sync.
+  Inline action bar (task buttons in the Grid): the flag is shared by all subjects on the screen type —
+  confirm scope first.
 - **Drag-and-drop**: a link is disabled in `drag_drop_matrix` by default for every variant combination
   — enable only the specific combinations that make business sense; use `drop_behavior = check_equal`
   for any compatibility check that should block an invalid drop; never let the task trust the drag

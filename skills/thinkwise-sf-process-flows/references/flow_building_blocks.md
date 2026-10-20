@@ -79,6 +79,8 @@ Mandatory: `model_id`, `branch_id`, `process_flow_id`, `process_step_id`, `last_
   already exist.**
 - `last_process_action_successful` enum: `not_successful` = 0, `successful` = 1, `always` = 2 — this
   is the green/red/blue branch condition from the designer canvas.
+- On steps leaving `start` or a `decision`, `last_process_action_successful` is read-only (fixed at
+  `always`) — omit it from the write instead of setting it.
 - `order_no` is **not** mandatory (defaults to `50`); `abs_order_no` is read-only and auto-computed
   — don't try to set it.
 - A single action can have several outgoing `process_step` rows; per §"Branching and loops" below,
@@ -101,7 +103,26 @@ the new action to whatever the old step used to point at.
 `process_step.last_process_action_id`/`next_process_action_id` that referenced the old id, and the
 step's own generated id, with no manual follow-up needed.
 
+## Decision as a code-only step
+
+A `decision` action runs a `PROCESSES` control procedure and nothing else — the way to add a step that
+only evaluates logic. `use_processes` defaults to `true` and is read-only on this type.
+
+- Run **Generate code group** for `PROCESSES` after adding the decision and its outgoing steps; it
+  materializes the program object `prc_<process_flow_id>_<process_action_id>`. Assign the template to
+  that object (see `thinkwise_sf_control_procedures`).
+- The generated procedure receives every process variable as an `output` parameter (so it can also
+  change them) plus one `int output` per outgoing step, named `@<decision_action_id>_<next_action_id>`.
+- Set each of those to a positive number to follow that step (the number orders execution, depth
+  first) and to `0`/`null`/negative to skip it. Set every one explicitly — e.g. `1` for the chosen
+  branch and `0` for the rest — rather than relying on defaults.
+- Outgoing steps from a decision stay `always`; the procedure, not the step condition, decides the route.
+
 ## Creating `process_variable`
+
+Add it through the entity-set variant `process_variable.process_variable_modeler` with parent
+`process_flow` (key `model_id, branch_id, process_flow_id`); a plain add on `process_variable` asks for
+an unrelated parent. Create the variables **before** the actions whose parameters map to them.
 
 Mandatory: `model_id`, `branch_id`, `process_flow_id`, `process_variable_id`, `dom_id` (a real domain
 — required, no default), `type_of_default_value` (default `constant_value`=0; other value is

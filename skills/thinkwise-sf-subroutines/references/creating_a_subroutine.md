@@ -44,14 +44,10 @@ Loaded on demand from `thinkwise_sf_subroutines`.
      the variable list.
 8. **Generate and verify** — same two-task flow as any other code type
    (`task_generate_code_grp` → `task_add_job_to_generate_object_code`, confirmed via
-   `generate_object_code_status`/`generated_code_stale`, then read the generated text). **Known gap for
-   a genuinely brand-new standalone subroutine** (verified live in the sibling skill): a subroutine with
-   no existing table/view/task to hang off of may never get its placeholder `prog_object` materialized
-   through `task_generate_code_grp` — two different attempts both left no row behind, without erroring.
-   The `subroutine`/`subroutine_parmtr`/`subroutine_return_col`/`control_proc`/template rows can still
-   be fully authored and reviewed through the API regardless. Try the normal generate flow first (it may
-   simply work); if no `prog_object` row appears afterward, treat the final generate as a manual step in
-   the Software Factory's own UI and say so, rather than continuing to retry alternate API paths.
+   `generate_object_code_status`/`generated_code_stale`, then read the generated text). Bind
+   `task_generate_code_grp` to the subroutine's own control procedure; it normally materializes
+   `func_<id>`/`proc_<id>`. If no `prog_object` row appears, treat the generate as a manual step in the
+   Software Factory (see `thinkwise_sf_control_procedures`, assignment and generation).
 9. **Copy / rename / delete** — all bound tasks on `subroutine`, verified: `task_copy_subroutine`
    (`from_subroutine_id`, `to_subroutine_id`, `copy_object_assignment` — toggle whether the
    template/functionality assignment comes along), `task_rename_subroutine` (`from_subroutine_id`,

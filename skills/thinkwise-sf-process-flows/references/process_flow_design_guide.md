@@ -121,7 +121,7 @@ Use one when Success/Not-successful is insufficient and the next path depends on
 
 A **Decision action** always uses a process procedure and can route through Always-type follow-up
 steps — useful at the start of a system flow to initialize/autonomously load state, or at a clear
-decision point needing no external/UI action (see `SKILL.md`'s "Decision as a code-only step").
+decision point needing no external/UI action (see "Decision as a code-only step" in `flow_building_blocks.md`).
 
 Also reach for one to conditionally skip an optional follow-up (skip printing when there's no printable
 result, notify only past a threshold, clean up only when a temporary artifact was created, continue

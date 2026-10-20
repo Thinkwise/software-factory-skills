@@ -90,6 +90,8 @@ error until the logic is written and something is silently missing.
 | `tab_variant_task_overview` | `tab_id, tab_variant_id, task_id` | Per table-variant override — which task variant shows, its ordering/visibility. |
 | `task_variant_look_up_overview` | `task_id, task_variant_id, task_ref_id` | Per-variant override of a look-up. |
 
+To show table tasks as buttons inside the Grid (inline action bar), see `thinkwise_sf_subject_components` (Grid).
+
 ## Task logic types (`task.task_type_id`)
 
 This decides what kind of program object the task actually generates:
@@ -153,7 +155,7 @@ Each row is one input or output on the task's form, independent of any table:
 
 | Field | Purpose |
 |---|---|
-| `task_input` / `task_output` | Direction: typed in by the caller, or returned for the caller to use afterward. |
+| `task_input` / `task_output` | Direction: typed in by the caller, or returned for the caller to use afterward. Setting `task_input = false` forces `task_output = false` (read-only), so an output-only parameter is not possible: model a value the task returns as input **and** output. |
 | `type_of_col` | `editable` (0) / `read_only` (1) / `hidden` (3) — static, independent of the dynamic Layout mechanism below. |
 | `mand` | Static mandatory-ness, before any dynamic Layout logic can loosen or tighten it. |
 | `dom_id` | Domain backing the parameter's type/control — set explicitly, don't trust a default. |
