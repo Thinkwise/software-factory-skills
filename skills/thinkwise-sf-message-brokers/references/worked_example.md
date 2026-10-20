@@ -1,5 +1,9 @@
 # Worked example — remote control for an MQTT robot
 
+An illustration of a complete setup, not a template: it shows what an agreed MQTT contract looks like,
+how many flows, tasks and subscriptions a two-way integration ends up with, and how to prove it works
+end to end. Take the shape, not the robot's tables or names.
+
 A simulated cleaning robot on a grid publishes and listens on `robots/<robot_id>/…`. The Thinkwise
 application drives it and shows its live state, including a "blocked" state when a move would hit
 furniture or a wall.
@@ -37,79 +41,9 @@ furniture or a wall.
 - **Context:** drive tasks disabled while the robot is offline; "Drive here" only on free cells.
 - **Conditional layouts:** blocked rows red, offline grey, the bumped cell red.
 
-## Receiving-task SQL patterns
-
-```sql
--- every receiving task: upsert the robot (retained messages arrive in any order)
-if not exists (select 1
-               from robot r
-               where r.robot_id = @robot_id)
-begin
-    insert into robot (robot_id
-                      ,online
-                      ,is_moving
-                      ,docked
-                      ,blocked
-                      ,queue_length
-                      ,coverage_percentage)
-    values (@robot_id
-           ,0
-           ,0
-           ,0
-           ,0
-           ,0
-           ,0)
-end
-
--- state: JSON booleans arrive as text
-update robot
-set    x             = @x
-      ,y             = @y
-      ,heading       = @heading
-      ,is_moving     = iif(@movement_status = 'moving', 1, 0)
-      ,docked        = iif(@docked = 'true', 1, 0)
-      ,last_state_at = sysutcdatetime()
-where  robot_id = @robot_id
-
--- result: match the command by correlation id, else register an external command
-declare @ok_bit     bit = iif(@ok = 'true', 1, 0)
-       ,@command_id int
-
-select @command_id = rc.command_id
-from robot_command rc
-where rc.robot_id       = @robot_id
-  and rc.correlation_id = nullif(@correlation_id, '')
-
--- 'Blocked by Table at (5,2)' → blocked_by = Table, blocked_x = 5, blocked_y = 2
--- @blocked_by depends on @at, so it gets its own statement.
-set @at = charindex(' at (', @message)
-set @blocked_by = substring(@message, 12, @at - 12)
-
--- config: rebuild the obstacles from the raw payload
-delete from robot_obstacle
-where robot_id = @robot_id
-
-insert into robot_obstacle (robot_id
-                           ,obstacle_no
-                           ,obstacle_name
-                           ,x
-                           ,y
-                           ,width
-                           ,height)
-select @robot_id                  as robot_id
-      ,cast(o.[key] as int) + 1   as obstacle_no
-      ,j.name                     as obstacle_name
-      ,j.x
-      ,j.y
-      ,isnull(j.w, 1)             as width
-      ,isnull(j.h, 1)             as height
-from openjson(@payload, '$.obstacles') o
-cross apply openjson(o.value) with (name nvarchar(100) '$.name'
-                                   ,x    int           '$.x'
-                                   ,y    int           '$.y'
-                                   ,w    int           '$.w'
-                                   ,h    int           '$.h') j
-```
+For the SQL patterns of the receiving tasks (upsert on first contact, JSON booleans as text, unpacking
+a raw payload with `openjson`), see `subscriptions.md`; for matching a result to its command by
+correlation id, see `publishing.md`. Write the SQL itself per `thinkwise_sf_control_procedures`.
 
 ## Checks that proved the setup end to end
 

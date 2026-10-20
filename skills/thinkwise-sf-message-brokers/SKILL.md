@@ -84,9 +84,10 @@ and encrypted key values, deployment order, and a step-by-step diagnosis when no
 
 ## Worked example
 
-For a complete robot remote-control blueprint (command publish with correlation id; state, result,
-status and config subscriptions; blocked-state notification; SQL for the receiving tasks), read
-`references/worked_example.md`.
+For an illustration of a complete two-way setup (a robot remote control: the agreed MQTT contract,
+how the publish and subscribe sides are wired, and the checks that proved it end to end), read
+`references/worked_example.md`. Use it to see the shape of a full integration, not as a template to
+copy.
 
 ## Known gotchas
 
