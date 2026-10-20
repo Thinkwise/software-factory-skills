@@ -207,7 +207,7 @@ all. Retry the same URL over `https://` before assuming the path is wrong.
 **If the endpoint is local/self-hosted, a client reports a certificate
 error, or `openid-configuration` returns 500**, read
 `references/local_https_and_oauth.md` (symptom→layer table, CA-plus-leaf
-localhost certificate recipe and `scripts/New-LocalhostCert.ps1`,
+localhost certificate recipe and what the script that applies it must do,
 `NODE_EXTRA_CA_CERTS`, curl `--ssl-no-revoke`, OpenID signing-certificate
-500 and the app-pool Load User Profile fix with
-`scripts/Enable-IndiciumUserProfile.ps1`, `DataSecuritySettings` migration).
+500 and the app-pool Load User Profile fix, `DataSecuritySettings`
+migration).

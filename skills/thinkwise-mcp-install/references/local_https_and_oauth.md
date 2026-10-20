@@ -6,9 +6,14 @@ client reports a certificate error or OAuth discovery fails.
 
 Certificate stores, IIS bindings and app-pool settings all need an elevated
 shell. An agent shell is usually not elevated, and a UAC prompt launched from
-the agent may be cancelled or blocked — write the change as a script and hand
-the user the exact command to run from an elevated PowerShell. Both scripts
-below live in this skill's `scripts/` folder.
+the agent may be cancelled or blocked — write the change as a PowerShell
+script and hand the user the exact command to run from an elevated PowerShell.
+This skill ships no scripts: write each one for the user's machine from the
+goals in sections 2 and 3, and show it to the user before they run it. Make
+every script stop on the first error (`$ErrorActionPreference = 'Stop'`), take
+the values that differ per machine as parameters, and log what it did to a
+transcript file you can read afterwards — the elevated window's output never
+reaches the agent.
 
 ## 1. Symptom → layer
 
@@ -48,12 +53,39 @@ will connect. Issue a local root CA and a leaf signed by it instead:
   application (find it by application path, not by assuming "Default Web
   Site") and assign the leaf to it.
 
-`scripts/New-LocalhostCert.ps1` does all of the above (parameters `-OutDir`,
-`-AppPath` default `/indicium`, `-Port` default `443`); re-running it rotates
-both certificates. It writes the CA as `localhost-ca.cer` and `localhost.pem`
-into `-OutDir`. Default `-OutDir` is the script's own folder — pass a stable
-per-user folder (e.g. `$env:USERPROFILE\.certs\localhost`) so the PEM path
-stays valid.
+### Writing the certificate script
+
+Goal: one elevated script that does all of the above and can be re-run to
+rotate both certificates. Parameters: an output folder (default a stable
+per-user folder such as `$env:USERPROFILE\.certs\localhost`, so the PEM path
+stays valid for `NODE_EXTRA_CA_CERTS`), the application path (default
+`/indicium`) and the HTTPS port (default `443`). In order, it should:
+
+1. **Remove earlier runs' certificates** from `LocalMachine\My` and
+   `LocalMachine\Root` — recognise them by a fixed CA subject and leaf friendly
+   name chosen for this purpose, and delete their keys too.
+2. **Create the CA** with `New-SelfSignedCertificate` in `LocalMachine\My`:
+   key usage CertSign, CRLSign, DigitalSignature; basic constraints through
+   `-TextExtension '2.5.29.19={critical}{text}ca=1&pathlength=0'`; RSA 2048,
+   SHA-256; long validity (e.g. 10 years).
+3. **Create the leaf**, signed by the CA (`-Signer`): subject `CN=localhost`;
+   SANs through extension `2.5.29.17` (`DNS=localhost&DNS=<COMPUTERNAME>&IPAddress=127.0.0.1&IPAddress=::1`);
+   EKU serverAuth (`2.5.29.37`, `1.3.6.1.5.5.7.3.1`); critical `ca=0`; key usage
+   DigitalSignature, KeyEncipherment; exportable key; shorter validity than the
+   CA (e.g. 5 years).
+4. **Trust and export the CA's public part**: export it as
+   `localhost-ca.cer` and as a PEM file `localhost.pem` (Base64 with line
+   breaks between `BEGIN/END CERTIFICATE`, ASCII), import the `.cer` into
+   `LocalMachine\Root`, then delete the CA from `LocalMachine\My` including its
+   private key.
+5. **Bind the leaf in IIS**: find the site whose applications include the
+   application path (fall back to "Default Web Site" only when none does), add
+   an `https` binding on the port if it's missing, and replace the binding's
+   certificate with the leaf.
+6. **Print the next step**: the PEM path to put in `NODE_EXTRA_CA_CERTS`.
+
+Afterwards, check the transcript and test the endpoint over `https://` with
+curl (`--ssl-no-revoke`) and from the client that failed.
 
 **Node-based clients** (Claude Code, the main process of Electron apps) do
 not read the Windows Root store by default. Point them at the CA PEM with a
@@ -94,10 +126,15 @@ Current User store, hence "Access is denied".
 
 Fix: set **Load User Profile = True** on the app pool that runs the Indicium
 application (`processModel.loadUserProfile`, plus
-`processModel.setProfileEnvironment`) and recycle it.
-`scripts/Enable-IndiciumUserProfile.ps1` finds the pool by application path
-(`-AppPath`, default `/indicium`), sets both and recycles. Indicium creates the
+`processModel.setProfileEnvironment`) and recycle it. Indicium creates the
 certificate on the next discovery request.
+
+Goal of the script: given the application path (default `/indicium`), find
+the IIS application at that path across all sites (`WebAdministration`
+module) and read its application pool — don't assume the pool name. Set both
+`processModel` properties to `true` on that pool, recycle it, and print the
+pool name and the new `loadUserProfile` value. Then retest
+`<base>/.well-known/openid-configuration`.
 
 The protected-resource metadata (`/.well-known/oauth-protected-resource/mcp`)
 does not touch the signing key, so it can return `200` while discovery still
