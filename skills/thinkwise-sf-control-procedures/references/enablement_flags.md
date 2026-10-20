@@ -36,3 +36,13 @@ the template.
 **Column flags being on is not sufficient by itself** — see the table-level flags above. A column can
 have `default_input`/`default_output = true` while the table's `use_defaults = false`, in which case
 the assigned logic still won't run. Check both.
+
+**Switch `context_input` off for large/HTML columns** (an HTML expression, rich text, binary): the GUI
+would send the whole value on every row change, and validation `val_col_html_rtf_binary_in_context_logic`
+flags it.
+
+**A flag change only reaches the generated code after the definition is regenerated** — code generation
+uses the last generated definition. Changing a flag (or any column/parameter) and then generating and
+deploying code without regenerating the definition first leaves the procedure signature out of step
+with what the GUI sends, failing at runtime with "procedure … expects parameter '@x', which was not
+supplied". See `thinkwise_sf_deployment`.

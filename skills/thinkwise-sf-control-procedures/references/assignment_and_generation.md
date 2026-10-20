@@ -104,13 +104,12 @@ Generating code is **two separate tasks**. Running only the first produces no co
 3. **Step 1 is only needed once per brand-new object.** Once a `prog_object` row exists, go straight
    to step 2 for every later template or assignment change.
 4. **`prog_object` is not directly writable** — add returns `403`. Always go through step 1.
-5. **Known gap — a brand-new *standalone* subroutine** (`PROCEDURES`/`FUNCTIONS`/
-   `TABLE_VALUED_FUNCTIONS`) with no table/view/task to hang off may never get its placeholder
-   materialized. Both `task_generate_code_grp` bound to the group's framework procedure and an unbound
-   whole-branch "generate new objects" task left no `prog_object` row and raised no error. The control
-   procedure, template and SQL can still be authored via the API; only the deployable object can't.
-   Treat it as a manual generate pass in the Software Factory, and say so, rather than retrying
-   alternate API paths.
+5. **A brand-new *standalone* subroutine** (`PROCEDURES`/`FUNCTIONS`/`TABLE_VALUED_FUNCTIONS`) with no
+   table/view/task to hang off normally gets its placeholder (`func_<id>`/`proc_<id>`) from
+   `task_generate_code_grp` bound to the subroutine's **own** control procedure. On some models/versions
+   no `prog_object` row appeared and no error was raised. Query `prog_object` after the generate; only if
+   the row is missing, treat it as a manual generate pass in the Software Factory and say so, rather than
+   retrying alternate API paths.
 6. **After wiring a new `template_prog_object_item` onto an object whose placeholder was bootstrapped
    in step 1 with a *different* (e.g. framework) control procedure, re-run step 1 bound to your own
    control procedure before step 2.** Otherwise generation reports `successful` with

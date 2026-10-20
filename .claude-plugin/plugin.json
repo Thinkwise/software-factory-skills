@@ -1,6 +1,6 @@
 {
   "name": "thinkwise-sf",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Reference guides and workflows for building Thinkwise Software Factory models through an MCP connector.",
   "author": { "name": "Thinkwise Software" },
   "homepage": "https://github.com/Thinkwise/software-factory-skills",

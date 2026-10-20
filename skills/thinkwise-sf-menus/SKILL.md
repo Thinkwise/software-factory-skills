@@ -180,6 +180,15 @@ writing to `rights_icon` itself.
 **This is why "different roles need different menus" is almost never a real reason to create a second
 menu** — set the grant at whichever level (menu/group/item) matches what should actually be hidden.
 
+The same edit-the-existing-row pattern applies to object rights a role needs next to its menu:
+
+- **Tables/views** (`role_tab_overview`): granting update also switches on grid edit mode, import and
+  mass update on the same row — reset those in the same write unless they are wanted.
+- **Table tasks need two grants**: the task itself (`role_task_overview`) **and** the table binding
+  (`role_tab_task_overview`); the button only becomes available once both are granted.
+- **User process flows** a button starts (`role_process_flow_overview`) and **subroutines** called from
+  the GUI each need their own grant; system flows started by schedules or subscriptions don't.
+
 ## Creating menus, groups, items, and role rights
 
 Call `get_entity_definition` on `menu`/`list_bar_grp`/`list_bar_item` (and the `role_*_overview`
@@ -188,8 +197,11 @@ up front. What the metadata won't tell you:
 
 - **No bound "create" task exists for `menu`** — create it as a plain record with `menu_id` and
   `menu_type` set.
-- **`menu_platform` can come back `readonly` at create**, already defaulted to `8` (`universal`).
-  That is not an error, and universal is the only actively-maintained target anyway.
+- **`menu_platform` can come back `readonly` at create** with a version-dependent default — `8`
+  (`universal`) on some models, `1` (`windows`) on others. Re-read it after commit; if it isn't the
+  platform the user runs, say it has to be changed in the Software Factory UI.
+- **`list_bar_item` has no icon field** — a menu item shows its target table's icon, so set the icon on
+  the table (see `thinkwise_sf_icons`).
 - **If a bare add is rejected, stage the `menu` as a dependent record of `branch`**
   (`parent_entity_set: "branch"`, `parent_key: {model_id, branch_id}`).
 - **`task_copy_menu` clones a whole group/item structure** — the fast start for a new platform

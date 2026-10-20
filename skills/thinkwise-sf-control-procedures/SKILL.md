@@ -16,7 +16,8 @@ generating code" below): `task_generate_code_grp` (bound to `control_proc` and t
 screen's `static_assignment_overview`) creates missing `prog_object` placeholders but does not itself
 produce code; `task_add_job_to_generate_object_code` (bound to `prog_object_code`/
 `prog_object_overview`) is what actually queues a generation job and writes
-`prog_object_generated_code`. Domain keys observed in this environment: `manage_model`/`data_modeling`
+`prog_object_generated_code`. `task_review_control_proc` (bound to `control_proc`) is the closing
+step that moves a finished procedure to Ready for review (step 9 below). Domain keys observed in this environment: `manage_model`/`data_modeling`
 (meta-model entities) and `manage_functionality` (Functionality screen tasks) — try these directly
 first (e.g. a `get_entity_definition`/`search_domain_capabilities` call against the expected domain);
 only fall back to `search_capabilities`/`get_available_domains` on an
@@ -244,6 +245,22 @@ decision order and how generated code round-trips to its template in
 8. Deploy: stale program objects (auto-flagged once template/assignment changed) get generated and
    pushed from the Deploy tab — all objects or just the touched ones. Multi-dialect: confirm every
    enabled `rdbms_type` generated and deployed, not just the first that succeeded.
+9. **Mark it Ready for review — always, as the closing step.** Once the procedure is finished and
+   deployable, which means its `prog_object_generated_code` was read back and contains your logic,
+   `generated_code_stale` is `false`, and the deploy succeeded (or the user put deploying out of scope),
+   run the bound task `task_review_control_proc`. Don't ask first: it's the standard end of the
+   lifecycle and easy to undo with `task_set_control_proc_status_to_development`.
+   - `stage_task` with `task_name: "task_review_control_proc"`, `entity_set: "control_proc"`,
+     `key: {model_id, branch_id, control_proc_id}`, and `properties: [{review_by_gai: false}]`.
+     Leave `reviewer_id` empty unless the user names a reviewer. Set `review_by_gai` to `true` only
+     when the user asks for the Software Factory's generative-AI review.
+   - At runtime the task's `control_proc_description` parameter is **mandatory** and prefilled from
+     the procedure's description. If the procedure has no description, the commit fails, so give the
+     procedure a purpose-driven description first.
+   - `commit_resource`, then re-read `control_proc.development_status`. Verified live, it goes from
+     `0` (development) to `3` (review) and `control_proc_status_icon` from `2` to `4`. A
+     `change_log_overview` row (the Code review tab) is created for it.
+   - Multi-dialect: one run per dialect's `control_proc`.
 
 ### Worked example: an idempotent seed
 
@@ -266,9 +283,9 @@ owning template, dynamic model code, and the calculated-column `_query` split, r
 
 ## Pre-flight checklist
 
-- Before considering a control procedure finished, confirmed with the user whether to clear its
-  "in development" status — a Software Factory validation flags any control procedure left flagged
-  in-development, and it's easy to forget once the SQL itself is done.
+- Before considering a control procedure finished, ran step 9 (`task_review_control_proc`) and
+  confirmed `development_status` moved from `0` to `3`. A Software Factory validation flags any control
+  procedure left in development, and it's easy to forget once the SQL itself is done.
 - If the requirement didn't map to exactly one row of "Choosing the right logic concept," asked the
   user which concept(s) to cover rather than silently picking one — some requirements genuinely need
   two layers (e.g. Layout + Trigger/Handler); see `references/logic_concept_design_guide.md`'s

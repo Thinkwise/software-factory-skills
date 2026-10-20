@@ -7,12 +7,12 @@ the object (e.g. `@activated_type` for a Layout on column `activated`).
 |---|---|---|
 | Default | `@default_mode` (0 insert/1 update), `@import_mode` (0 UI/1 API/3 import), `@cursor_from_col_id` (null on add), `@[col_id]` | `@[col_id]`, `@cursor_to_col_id`, `@auto_commit` |
 | Layout | `@layout_mode` (0/1/2 insert/update/navigate), `@import_mode` (0/1/2/3 UI/API/export/import), `@[col_id]` | `@[col_id]_type` (0 normal/1 read-only/2 hidden in form/3 hidden outside form), `@[col_id]_mand`, `@add_button_type`, `@update_button_type`, `@delete_button_type`, `@confirm_button_type`, `@cancel_button_type` |
-| Context | `@active_ref_id`, `@[col_id]` | `@[ref_id]_type`, `@[task_id]_type`, `@[report_id]_type` (0 enabled/1 disabled/2 hidden) |
+| Context | `@active_target_ref_id`, `@[col_id]` (columns with `context_input`) | `@[ref_id]_type`, `@[task_id]_type`, `@[report_id]_type` (0 enabled/1 disabled/2 hidden). Code group `CONTEXTS`; program object `context_<tab_id>` generates procedure `ctx_<tab_id>` |
 | Trigger/event | create/update/delete rows in `inserted`/`deleted` pseudo-tables (old values on update/delete, new on create/update) | — (before/after/instead-of; can roll back the transaction) |
 | Handler | Insert: all columns; Update: all columns + PK; Delete: PK only | Insert: identity via `SCOPE_IDENTITY` (Oracle/DB2: mutable `m_`-prefixed locals mirroring `in out` params, since those platforms disallow mutating `in` parameters) |
 | Change detection | `@variant_id`, `@last_refresh_utc` (null if never refreshed), `@[col_id]` (detail-mapped columns only) | `@refresh_data` (0/1, default 0) |
 | Badge | `@variant_id`, `@[col_id]` (column/linked task or report parameter that's part of a detail FK) | `@badge_value` (integer; `null` hides the badge) |
-| Process | `@[process_variable_id]` (flow variables marked Process input/output available) | `@[follow_up_process_action_id]` — null/0/negative skips that action |
+| Process | `@[process_variable_id]` (flow variables marked Process input/output available) | `@[action_id]_[follow_up_process_action_id]` (int) — positive follows that step and orders execution, null/0/negative skips it. Program object `prc_<flow_id>_<action_id>` |
 | Task | Same Default/Layout mechanism as tables, but `@[col_id]` is a task parameter, not a column | Same as Default/Layout; Layout only affects form styling (tasks have no grid) |
 
 **Handler PK parameter on Update: two different values, easy to swap by mistake.** The "all columns +
