@@ -7,6 +7,10 @@ confirm the exact numeric value via `get_entity_definition`/`get_domain_definiti
 in use before relying on a specific id, since these are illustrative of the catalog observed, not a
 guaranteed-stable contract.
 
+The lookup's display names differ from these keys — seen on SF 2026.2: 60 shows as "Start task",
+6 as "Start table task", 61 as "Execute system task". A display-name lookup such as "Execute task"
+fails; pass the numeric id with `value_kind: "data"`.
+
 Legend: **sys** = `system_flow_action = true` (legal inside a system flow, no UI required); **ui** =
 requires a live user session.
 
@@ -28,8 +32,8 @@ requires a live user session.
 | `execute_tab_task` | 6 | ui | Runs a table task bound to a subject/table |
 | `execute_task` | 60 | ui | Runs a standalone task, with parameter mapping to/from process variables |
 | `execute_system_task` | 61 | sys | Runs a task's default procedure headless inside a system flow; parameters not marked input/output are ignored (model-validated) |
-| `execute_tab_report` | 7 | ui | Starts a table report |
-| `execute_report` | 70 | ui | Starts a standalone report |
+| `execute_tab_report` | 7 | ui | Starts a table report (`tab_id` + `tab_report_id`) — see `thinkwise-sf-reports` |
+| `execute_report` | 70 | ui | Starts a standalone report (`report_id`) — see `thinkwise-sf-reports` |
 | `generate_report` | 71 | sys | Produces a report headlessly (e.g. to attach to an email) instead of showing it |
 
 ## Table / grid / UI navigation (all **ui** — none legal in a system flow)
@@ -51,7 +55,7 @@ requires a live user session.
 | `close_all_documents`(870) | ui | Closes every open document |
 | `open_link`(755) | ui | Opens an external URL |
 | `copy_to_clipboard`(880) | ui | Copies a value/variable to the clipboard |
-| `show_msg`(350) | ui | Shows a predefined message dialog, with variable substitution |
+| `show_msg`(350) | ui | Shows a predefined message dialog and branches on the chosen option; no input mapping, so the text can't carry a flow value — see `thinkwise-sf-messages` |
 | `send_usr_notification`(351) | ui | Sends an in-app user notification (deep link, icon, expiry) |
 
 ## Connectors & integration (mostly **sys** — the actions that make a flow schedulable)
@@ -66,7 +70,7 @@ requires a live user session.
 | `email_connector` | 625 | Sends email via a configured email provider |
 | `appl_connector` | 580 | Calls another Thinkwise application |
 | OAuth connector actions | 560/570/575 | Handle OAuth token flows for a configured OAuth server |
-| `publish_message` | 950 | Publishes a message onto a configured message broker — see `thinkwise_sf_message_brokers` |
+| `publish_message` | 950 | Publishes a message onto a configured message broker — see `thinkwise-sf-message-brokers`. Set `message_broker_id` before `message_broker_message_id` (the response lists the message as cleared, but the value you send afterwards sticks), and send `process_action_id` last — a combined broker+message write renames the action id to `publish_message_<broker>_<msg>` otherwise |
 
 ## Files (**sys**)
 

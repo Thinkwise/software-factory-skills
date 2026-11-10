@@ -1,6 +1,6 @@
 # Task-level and cube-level conditional layout
 
-Loaded on demand from `thinkwise_sf_conditional_layouts`.
+Loaded on demand from `thinkwise-sf-conditional-layouts`.
 
 ## Task-level `task_conditional_layout` — field reference
 

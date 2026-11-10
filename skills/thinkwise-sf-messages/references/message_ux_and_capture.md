@@ -1,6 +1,6 @@
 # Message UX, confirmations, and database error capture
 
-Loaded on demand from `thinkwise_sf_messages`.
+Loaded on demand from `thinkwise-sf-messages`.
 
 ## UX principles for confirmations and choices
 
@@ -29,7 +29,7 @@ gives the user nothing to check their intent against). Applying this to `msg`/`m
 Purpose and severity are almost always inferable from the request and the model — "add a confirmation
 to the Delete Customer task" tells you the purpose, and the data model tells you the consequence (does
 it cascade, how many dependent rows). Ask the user (the "Ask, don't default" convention from
-`thinkwise_sf_base`, applied here) only when:
+`thinkwise-sf-base`, applied here) only when:
 
 - **Whether the action is serious enough to interrupt at all isn't visible in the model** — is this
   "delete" a hard delete or a soft archive; is this "send" reversible?
@@ -128,7 +128,7 @@ worked version of this pattern.
   state instead. If an informational message is essential here, make sure it can't repeat on every
   refresh.
 - **Tasks and subroutines** — a natural place for completion, validation, and integration messages. A
-  reusable subroutine (`thinkwise_sf_subroutines`) should normally return a structured
+  reusable subroutine (`thinkwise-sf-subroutines`) should normally return a structured
   result to its caller and emit a user message only when its contract explicitly owns presentation — a
   subroutine that always pops a message becomes hard to reuse from an API, a job, or a process flow.
 - **Triggers and handlers** — use messages here for database-enforced failures that must stay consistent

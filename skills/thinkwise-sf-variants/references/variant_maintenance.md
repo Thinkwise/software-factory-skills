@@ -1,6 +1,6 @@
 # Variant naming, maintenance, and testing
 
-Loaded on demand from `thinkwise_sf_variants`.
+Loaded on demand from `thinkwise-sf-variants`.
 
 ## Naming and documentation
 
@@ -48,7 +48,7 @@ need, and whether it carries a grid/form/detail snapshot.
 
 ## Testing
 
-Per `thinkwise_sf_unit_tests`: unit-test the underlying task/default/layout/handler
+Per `thinkwise-sf-unit-tests`: unit-test the underlying task/default/layout/handler
 logic once — variants reuse that same logic, so they don't each need their own copy of the same
 test. The one exception is a **task variant that silently supplies a default** (e.g. a
 `material_receipt` variant defaulting `transaction_type = RECEIPT`) — that hidden branch is real

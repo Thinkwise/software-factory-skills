@@ -1,6 +1,6 @@
 # Worked example — idempotent demo-data seed in `ug_after_upgrade_always`
 
-Loaded on demand from `thinkwise_sf_control_procedures`.
+Loaded on demand from `thinkwise-sf-control-procedures`.
 
 ### Worked example: idempotent demo-data seed woven into `ug_after_upgrade_always`
 
@@ -28,4 +28,4 @@ that fires on every deploy/upgrade and only inserts what's missing (the platform
    upgrade script), not just that generation returned "successful".
 
 Deploying the database is still a separate pipeline step (see
-`thinkwise_sf_deployment`); generating only updates the model.
+`thinkwise-sf-deployment`); generating only updates the model.

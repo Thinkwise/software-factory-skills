@@ -5,11 +5,9 @@ description: Step-by-step guide and checklist for adding PostgreSQL as a support
 
 # Migrating a Thinkwise Software Factory application to PostgreSQL
 
-First version of this skill, distilled from a real, live, single-session migration of a
-medium-sized model (RK_SCHEDULER_TEST — ~25 tables, ~150 code objects, ~1000 generated objects once
-PostgreSQL was enabled) from SQL-Server-only to dual-platform (SQL Server + PostgreSQL). Every
-technique, gotcha, and dead end below was verified live via an MCP connector (`sf_mcp`-style) during
-that migration — nothing here is theoretical. Follow `thinkwise_sf_base`'s shared
+Distilled from a real migration of a medium-sized model (~25 tables, ~150 code objects, ~1000
+generated objects once PostgreSQL was enabled) from SQL-Server-only to dual-platform (SQL Server +
+PostgreSQL) through an Indicium MCP connector. Follow `thinkwise-sf-base`'s shared
 conventions (confirm-before-mutate, ask-don't-default, the staged add/patch/commit write hazards)
 throughout; this skill only adds what's specific to a PostgreSQL migration.
 
@@ -19,24 +17,29 @@ deployment. If the goal is a full cutover (drop the old platform once PostgreSQL
 same porting work applies; skip duplicating templates per platform and edit in place instead, and
 disable/remove the old `branch_rdbms_type` row as a final step. **Confirm which of the two the user
 wants before starting** — it changes whether you create a second template per object or edit the
-existing one, which is expensive to unwind after the fact. See `thinkwise_sf_base`'s
+existing one, which is expensive to unwind after the fact. See `thinkwise-sf-base`'s
 "Ask, don't default."
 
 ## Before starting: confirm the plan
 
-Per the mcp_base "confirm-before-mutate" convention, applied at this migration's own grain: before
+Per the `thinkwise-sf-base` "confirm-before-mutate" convention, applied at this migration's own grain: before
 staging the first write, tell the user the shape of the work — which categories from the checklist
 below actually have content in this model (query each category first; don't assume), roughly how many
 objects that means, and the platform-scope decision above. A migration touches dozens to low-hundreds
 of objects; the user should see that scope before it starts, not discover it partway through.
 
-## Step 0 — Enable PostgreSQL (manual, outside the API)
+## Step 0 — Enable PostgreSQL
 
-**`branch_rdbms_type` is read-only through every MCP connector checked** (`allow_add`/`allow_update`/
-`allow_delete` all `false`, no bound task, no unbound task like `unlink_generated_object.platform`
-does what's needed either). There is no API path to enable a platform. **Tell the user to enable it
-directly in the Software Factory's own UI** (Project settings for the model/branch → RDBMS types →
-enable PostgreSQL) and wait for confirmation before continuing. Verify it took:
+`branch_rdbms_type` is not directly writable (`allow_add`/`allow_update`/`allow_delete` all `false`),
+but it carries the bound tasks `task_link_branch_rdbms_type`/`task_unlink_branch_rdbms_type` and
+`task_mass_conv_code` (AI dialect conversion of the branch's code). The link task is bound to an
+**existing** `branch_rdbms_type` row (e.g. the branch's SQL Server row, `rdbms_type` 0) and takes the
+platform to add as its `rdbms_type` parameter; staging it on the not-yet-existing PostgreSQL key gives
+404. Try it once; if it is
+refused, **ask the user to enable PostgreSQL in the Software Factory's own UI** (Project settings for
+the model/branch → RDBMS types) and wait for confirmation. See `references/known_issues_and_gaps.md`.
+`task_mass_conv_code` can draft the PostgreSQL templates in bulk — its output still needs every check
+in "Verification, every time" below. Verify the platform took:
 
 ```
 GET /branch_rdbms_type?$filter=model_id eq '<model>' and branch_id eq '<branch>'
@@ -48,7 +51,7 @@ Confirmed enum (one gap, not a typo): `sqlserver = 0`, `iseries = 1`, `oracle = 
 ## Step 1 — Confirm scope before writing anything
 
 Query `branch_rdbms_type` regardless of what the user says enabled it — confirm live, every time
-(see `thinkwise_sf_control_procedures`'s "Check branch_rdbms_type first").
+(see `thinkwise-sf-control-procedures`'s "Check branch_rdbms_type first").
 Everything below assumes it now returns at least two rows.
 
 ## The full checklist — every category of hand-written SQL/config to migrate
@@ -60,7 +63,7 @@ empty.
 
 | # | Category | Where it lives | Per-platform? | Notes |
 |---|---|---|---|---|
-| 1 | Custom control procedures | `control_proc` where `control_proc_type = 1`, via `control_proc_template` | Yes — one template per platform | The bulk of the work; see "Porting control procedures" below |
+| 1 | Custom control procedures | `control_proc` where `control_proc_type = 1`, minus framework `sql_tsf_*`/`sql_unit_test_*`, via `control_proc_template` | Yes — one template per platform | The bulk of the work; see "Porting control procedures" below |
 | 2 | Framework helper control procedures | `control_proc` rows like `sql_tsf_user`, `sql_tsf_send_message` | Yes, but **auto-provided** | Don't hand-port — see "Framework helpers" below |
 | 3 | Calculated field queries | `col_query.calculated_field_query` | Yes (`rdbms_type` in the key since 2026.2) | One row per `(tab_id, col_id, rdbms_type)` — for `calculated_column` rows, also verify every function used is `IMMUTABLE` on PostgreSQL (see dialect reference); `concat` is not |
 | 4 | Column-level default value queries | `col_query.default_value_query` | Yes | Same entity as #3, different field |
@@ -87,8 +90,10 @@ empty.
 2. **Verify framework helpers auto-generate** (see below) before touching anything else — if they
    don't, that's a product issue to flag, not something to work around by hand-writing framework code.
 3. **Inventory custom control procedures**: `GET /control_proc?$filter=... and control_proc_type eq 1`,
-   grouped by `code_grp_id`. This is your real work list — ignore `control_proc_type in (0, 2)` rows
-   entirely (see `thinkwise_sf_control_procedures`'s "control_proc_type" section).
+   grouped by `code_grp_id` — group the rows yourself; `$apply=groupby` on `control_proc` (and on `col`)
+   can answer `500`. Drop the framework's own type-1 rows (`sql_tsf_*`, `sql_unit_test_*`; see "Framework
+   helpers" below) — what remains is your real work list. Ignore `control_proc_type in (0, 2)` rows
+   entirely (see `thinkwise-sf-control-procedures`'s "control_proc_type" section).
 4. **Port control procedures in ascending order of risk**: Views (usually mechanical) → Defaults →
    Handlers → Tasks → Subroutines (structural: procedure/transaction model differs) → Triggers
    (structural: row-level `NEW`/`OLD` vs. batch `inserted`/`deleted`). Generate and read back the
@@ -96,7 +101,8 @@ empty.
 5. **Port calculated fields, column/domain default queries, and prefilter queries** (checklist items
    3–5, 6) — same dialect substitutions as control procedures, no `control_proc_template`/
    `template_prog_object_item` machinery involved; write straight into the `_query` child entity's
-   `rdbms_type = 4` row.
+   `rdbms_type = 4` row. (Writing the parent field, e.g. `col.calculated_field_query`, was verified to
+   fill the primary platform's row only — don't rely on it for the PostgreSQL row.)
 6. **Resolve domain/column name collisions** (checklist item 7) — do this *before* the first full
    model validation pass if possible; it's a modeling issue independent of any code, cheap to fix, and
    will otherwise mask other validation output.
@@ -110,7 +116,7 @@ empty.
 
 ## Porting control procedures
 
-Follow `thinkwise_sf_control_procedures`'s multi-dialect section
+Follow `thinkwise-sf-control-procedures`'s multi-dialect section
 (`control_proc_template` per platform, `template_prog_object_item` per `(rdbms_type, prog_object_id)`,
 generate via `task_generate_code_grp` then `task_add_job_to_generate_object_code`, verify by reading
 `prog_object_generated_code`) for the mechanics of *how* to wire a new template. This skill adds what's
@@ -149,19 +155,16 @@ these if generation comes back empty or wrong.
 **This also means `tsf_send_message`'s abort semantics differ by platform** — see the dialect
 reference for what this changes in every handler/trigger/task that calls it.
 
-## Subroutines that were never generated before — known API gap
+## Subroutines that were never generated before
 
 A standalone subroutine (`PROCEDURES`/`FUNCTIONS`/`TABLE_VALUED_FUNCTIONS` code group) that has *never*
-been generated on *any* platform has no `prog_object` row to build on. Verified live, twice: neither
-`task_generate_code_grp` bound to the subroutine's own control procedure nor bound to the framework's
-group-level control procedure materializes the missing placeholder — unlike every other code type
-(views, handlers, tasks, triggers), where the same call reliably creates one. This isn't
-platform-specific to PostgreSQL — it's a gap in the object-creation API path for this one code-type
-shape, just one a PostgreSQL migration is likely to trip over if the model has any subroutine that was
-authored but never deployed. **Write and save the PostgreSQL template anyway** (`control_proc_template`
-add/edit both work fine standalone), then tell the user this specific object needs one manual
-"Generate" pass in the Software Factory's own UI before the template takes effect — don't keep
-retrying alternate API calls once both documented paths have failed.
+been generated on *any* platform has no `prog_object` row yet. `task_generate_code_grp` bound to its own
+control procedure creates the `func_`/`proc_` placeholder, provided the `subroutine` and its
+`subroutine_parmtr` rows existed before the control procedure and the generate ran (the creation order
+in `thinkwise-sf-subroutines` → `references/creating_a_subroutine.md`). Check that the `prog_object` row
+exists afterwards. Only if it is still missing: write and save the PostgreSQL template anyway
+(`control_proc_template` add/edit work standalone) and tell the user this object needs one manual
+"Generate" pass in the Software Factory — anything that calls the subroutine fails at deploy until then.
 
 **Side effect to know about**: `task_generate_code_grp` bound to *any* control procedure was observed
 to bulk-materialize stale placeholders across many unrelated code groups and tables at once (a single

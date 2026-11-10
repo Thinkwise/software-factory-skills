@@ -7,8 +7,8 @@ table, and how to design a lookup screen. For the actual `col`/`tab` fields (`de
 `visible_for_filter`/`filter_condition`, `grp_until`, aggregation), see `SKILL.md`'s "Sort, search, and
 filter" and "Grid row grouping and aggregation" sections — this file assumes those mechanics and adds
 the reasoning behind the choice. For prefilters and variants as alternatives to a filter, see
-`thinkwise_sf_prefilters` and `thinkwise_sf_variants`. For Grid/Form
-column order, header groups, locking, and sections, see `thinkwise_sf_subject_components`.
+`thinkwise-sf-prefilters` and `thinkwise-sf-variants`. For Grid/Form
+column order, header groups, locking, and sections, see `thinkwise-sf-subject-components`.
 
 ## Start with the subject's job
 
@@ -25,7 +25,7 @@ one "complete" screen to serve every job at once is the most common source of an
 - Select a value in a lookup.
 
 If a table needs to serve more than one of these jobs for different users, that's the signal to reach
-for a variant (`thinkwise_sf_variants`) rather than compromise one screen to cover both.
+for a variant (`thinkwise-sf-variants`) rather than compromise one screen to cover both.
 
 ## Default sort
 
@@ -165,12 +165,12 @@ Use a **table** subject when users maintain the business entity directly. Reach 
 instead when the screen needs: denormalized lookup labels and derived status, a work queue joining
 several entities, aggregated/reporting data, a stable read model optimized for search/filter/sort, or a
 role-/process-specific projection that shouldn't leak into the base table's own screen. See
-`thinkwise_sf_views` for how to actually build the view once this is the answer.
+`thinkwise-sf-views` for how to actually build the view once this is the answer.
 
 A view built for presentation should still expose a stable identity and a deterministic sort — the same
 rules above apply to it, not a relaxed version. Avoid views with ambiguous update semantics; if the view
 must be editable, define its handlers/process logic deliberately and test concurrency (see
-`thinkwise_sf_control_procedures`'s Handler guidance). Don't duplicate every base
+`thinkwise-sf-control-procedures`'s Handler guidance). Don't duplicate every base
 column into the view "just in case" — project only what identification, decisions, filters, sorting,
 and actions actually need.
 
@@ -184,7 +184,7 @@ A lookup screen has one narrow job: help the user identify and choose a single r
   screen where users type a fragment they already know.
 - Add status/category/location filters only when they genuinely help narrow the choice, not by default.
 - Apply a hidden or locked prefilter to remove records that are structurally invalid choices for this
-  context — see `thinkwise_sf_prefilters`'s "look-up-only scoping" pattern, which does
+  context — see `thinkwise-sf-prefilters`'s "look-up-only scoping" pattern, which does
   exactly this without touching the table's own main screen.
 - Use a compact variant rather than the full maintenance screen for the popup itself.
 - Prefer Suggestions (starts-with) for large datasets; a combo control suits small, stable datasets.

@@ -1,6 +1,6 @@
 # Reuse decisions and the generated-code comment header
 
-Loaded on demand from `thinkwise_sf_control_procedures`.
+Loaded on demand from `thinkwise-sf-control-procedures`.
 
 ### Reuse — decide in this order, before writing anything new
 
@@ -67,5 +67,5 @@ assign its logic. Task creation order is enforced (`task` → `tab_task` → `ta
 does not receive the table's primary key for free, and only `STORED_PROCEDURE` tasks go through the
 control-procedure Assigning flow.
 
-The full mechanics live in `thinkwise_sf_tasks` — read it rather than the summary that
+The full mechanics live in `thinkwise-sf-tasks` — read it rather than the summary that
 used to sit here.

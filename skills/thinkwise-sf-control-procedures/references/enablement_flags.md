@@ -1,6 +1,6 @@
 # Table-level and per-column enablement flags
 
-Loaded on demand from `thinkwise_sf_control_procedures`.
+Loaded on demand from `thinkwise-sf-control-procedures`.
 
 ### Table-level enablement flags — verify, don't assume
 
@@ -16,6 +16,10 @@ against `tab` (`$select=use_defaults,use_layouts,use_contexts,use_badges,use_cha
 use_insert_handlers,use_update_handlers,use_delete_handlers`) *before* declaring an assignment
 complete, and enable any that are off via `stage_resource`(edit)/`patch_resource`/`commit_resource` on
 the `tab` row, then re-run `generate_code_grp`.
+
+**Tasks carry their own `use_defaults`, `use_layouts` and `use_badges`** on the `task` row, and the
+Software Factory doesn't switch those on by itself either — check them the same way for a task's
+Default/Layout/Badge logic.
 
 ### Per-column enablement flags — verify, don't assume
 
@@ -45,4 +49,4 @@ flags it.
 uses the last generated definition. Changing a flag (or any column/parameter) and then generating and
 deploying code without regenerating the definition first leaves the procedure signature out of step
 with what the GUI sends, failing at runtime with "procedure … expects parameter '@x', which was not
-supplied". See `thinkwise_sf_deployment`.
+supplied". See `thinkwise-sf-deployment`.

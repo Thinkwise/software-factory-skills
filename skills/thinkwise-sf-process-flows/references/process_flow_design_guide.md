@@ -28,9 +28,9 @@ own logic already does. Prefer instead:
 
 - A **task** for one cohesive user command.
 - A **subroutine** for reusable business/database logic with inputs and outputs
-  (`thinkwise_sf_subroutines`).
+  (`thinkwise-sf-subroutines`).
 - A **Default/Layout/Context** control procedure for one logic concept
-  (`thinkwise_sf_control_procedures`).
+  (`thinkwise-sf-control-procedures`).
 - A **Trigger/Handler/constraint** for integrity that must hold on every write path.
 - A **process procedure** only for immediate route selection — not as a substitute for the whole flow
   (see "When to use a process procedure" below).
@@ -64,7 +64,7 @@ stripping the interactive one down.
   navigation can conflict with subsequent flow actions.
 - **Confirmation and choice** — Task result → Show message with options (Continue / Return to edit /
   Cancel). Use explicit message-option status codes and meaningful labels (see
-  `thinkwise_sf_messages` and `SKILL.md`'s `show_msg` section); handle close/cancel and
+  `thinkwise-sf-messages` and `SKILL.md`'s `show_msg` section); handle close/cancel and
   unexpected status. Don't reach for a process procedure when the visible choice is already clear from
   the diagram.
 - **Review and approval** — Open item → user reviews → Approve/reject task → refresh/open next work

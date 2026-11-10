@@ -11,32 +11,31 @@ grouping, activity-linked columns, drag permissions) → one or more `scheduler_
 pagination, time-cell display) → `scheduler_view_resource_col` (extra read-only columns in the
 resource panel) → `scheduler_view_conditional_layout`/`_condition`/`_tag` (time-cell colouring) →
 screen (a dedicated Scheduler-only screen type) → tasks and process flows (click-to-create,
-double-click-to-detail, external drag-and-drop, jump-to-date). Every entity/field/value below was
-confirmed live against a real model (`sf/manage_scheduler` domain, with some of the same entities also
-reachable via a `sf/manage_datamodel`-style domain in at least one connector) and against a working
+double-click-to-detail, external drag-and-drop, jump-to-date). The worked examples come from a
 reference application (`PROJECT_MANAGER`) implementing multi-table hierarchical resource planning with
 HTML-formatted activities.
 
-Apply this whenever an MCP connector with Software Factory access (`sf_mcp`, `indicium`) is used to
-create, inspect, or troubleshoot a Scheduler component — follow the connector's standard
-discovery→act flow; never guess entity/task/property names.
-`scheduler`/`scheduler_view`/`scheduler_view_resource_col`/`scheduler_view_conditional_layout*`
-typically live in a `manage_scheduler`-style domain; the underlying subject's `tab`/`col`/`ref` live in
-a `manage_datamodel`-style domain (which may *also* expose `scheduler` and
-`scheduler_view_conditional_layout*` directly — check both if the first search comes back empty rather
-than assuming a single domain owns them); `control_proc`/`control_proc_template` (the view's SQL,
-update handlers) live in a `manage_control_procedures`-style domain; `tab_task`/`task` live in a
-`manage_tasks`-style domain; `process_flow`/`process_action` live in a `manage_process_flows`-style
-domain For general data-modeling rules (naming, domain reuse, reference direction, unique indexes) see
-`thinkwise_sf_data_model`. For how to actually write and generate the SQL behind a scheduler
+Apply this whenever an MCP connector with Software Factory access is used to create, inspect, or
+troubleshoot a Scheduler component.
+
+Domain: split-domain instances `sf/manage_scheduler` for
+`scheduler`/`scheduler_view`/`scheduler_view_resource_col`/`scheduler_view_conditional_layout*`;
+single-domain `sf/software_development` for everything; otherwise find it with
+`search_domain_capabilities`. **(Indicium · split-domain)** The scheduler entities also appear in
+`sf/manage_datamodel`, but read-only there — write them in `sf/manage_scheduler`. The surrounding
+objects sit in their own split domains: `tab`/`col`/`ref` in `sf/manage_datamodel`,
+`control_proc`/`control_proc_template` (the view's SQL, update handlers) in
+`sf/manage_control_procedures`, `tab_task`/`task` in `sf/manage_tasks`, `process_flow`/`process_action`
+in `sf/manage_process_flows`. For general data-modeling rules (naming, domain reuse, reference direction, unique indexes) see
+`thinkwise-sf-data-model`. For how to actually write and generate the SQL behind a scheduler
 subject that's a view (`tab` → `control_proc`/`control_proc_template` →
 `template_prog_object_item` → generated `CREATE VIEW`, including the two-step "generate code group"
-then "generate object code" sequence) see `thinkwise_sf_views` — a scheduler
+then "generate object code" sequence) see `thinkwise-sf-views` — a scheduler
 subject is, in every verified case, a `create_view_method = template` view, since a real scheduler
 subject always needs a `UNION` of resource types and/or calculated HTML/colour columns that Meta
 Auto/Meta Custom can't express. For control-procedure mechanics generally (code groups, static vs. SQL
 assignment, `branch_rdbms_type`, dialect translation) see
-`thinkwise_sf_control_procedures`; every control procedure referenced below
+`thinkwise-sf-control-procedures`; every control procedure referenced below
 (the view's SELECT, update handlers, process-flow-called tasks) is created and generated exactly that
 way. This skill only covers what's specific to the Scheduler.
 
@@ -66,7 +65,7 @@ that something crashed.
    follow-up) to ask.
 2. **Present that plan and get the user's explicit confirmation before creating any
    `scheduler`/`scheduler_view` row.** This is the Scheduler-specific instance of the
-   confirm-before-mutate / ask-don't-default rules in `thinkwise_sf_base`'s
+   confirm-before-mutate / ask-don't-default rules in `thinkwise-sf-base`'s
    "Shared conventions" section — resource shape, view/timescale count, drag-drop scope, and
    Add-activity parameters are all real design decisions, not mechanical CRUD, so don't let staging
    begin section by section without a confirmed plan covering all of them first.
@@ -95,7 +94,9 @@ synthetic-key hierarchy.
 
 ## `scheduler` — one row per table/variant
 
-Keyed by `(model_id, branch_id, tab_id)`. `get_entity_definition` returns the full field list with
+Keyed by `(model_id, branch_id, tab_id)`. Request its `get_entity_definition` on its own — it embeds
+the multi-hundred-value `type_of_object` enum (see `thinkwise-sf-base`'s token-bloat warning). It returns
+the full field list with
 enums (`type_of_resource_grp_by`: `single_col_grp_by` = 0, `hierarchy_grp_by` = 1), the resource
 grouping and activity title/tooltip/start/end column pointers, and the dragging flags. What it does
 **not** tell you:
@@ -105,13 +106,19 @@ grouping and activity title/tooltip/start/end column pointers, and the dragging 
   Navigate to the `tab` row and add through `detail_ref_tab_scheduler`; that also auto-populates
   `tab_id`, `model_id` and `branch_id`, so there is no need to set them by hand. When an unscoped add
   is rejected, check the entity's parent-relationship options before concluding access is missing.
-- **`add_activity_task_id` and `activity_start_task_parmtr_id` both reject a direct patch**, returning
-  `unknown_property` even when isolated in their own call on a freshly staged resource — and
-  `add_activity_task_id` does so while reporting as `editable` in the staged field view.
-  Build and generate the Add-activity task itself through the API (that part works fully), then
-  **bind both `scheduler` fields by hand in the Software Factory** and say so.
+- **Binding the Add-activity task depends on the domain layout.** Build and generate the task itself
+  through the API first (that works on both).
+  - **(Indicium · single-domain)** Patch `add_activity_task_id` directly; once it is set,
+    `activity_start_task_parmtr_id` opens and can be patched too. Read both back.
+  - **(Indicium · split-domain)** Both fields were refused with `unknown_property`, even isolated on a
+    freshly staged resource, and `add_activity_task_id` while reporting `editable`. Try once; on
+    refusal **bind both `scheduler` fields by hand in the Software Factory** and say so.
 - `activity_start_task_parmtr_id` is the Add-activity task's parameter that receives the clicked time
-  cell's start date/time — the link that makes click-to-create land on the right slot.
+  cell's start date/time — the link that makes click-to-create land on the right slot. It stays hidden
+  in the write API's field view until `add_activity_task_id` is set.
+- **The table needs a resource column and start and end date columns first**:
+  `resource_grp_by_col_id`, `activity_start_date_col_id` and `activity_end_date_col_id` are all
+  mandatory on the `scheduler` row — a table without them can't carry a Scheduler.
 
 ## `scheduler_view` — one row per view
 
@@ -119,23 +126,25 @@ Keyed by `(model_id, branch_id, tab_id, scheduler_view_id)`. One Scheduler can o
 (Day/Week/Month-style), each with its own timescales, pagination and cell styling. Call
 `get_entity_definition` for the field list and enums; what follows is what it won't tell you.
 
-**Creating a new `scheduler_view` may be impossible through the write API.** On some connectors
-`scheduler_view` reports `allow_add/update/delete = false` with no bound tasks, *and* `tab` exposes no
-`detail_ref_tab_scheduler_view` navigation — unlike `scheduler`, which is created through
-`detail_ref_tab_scheduler`. `tab_variant_scheduler_view_overview` is not an alternative: it is a
-per-variant show/hide + conditional-layout toggle for a *pre-existing* view and cannot originate one.
-Try the `tab` detail route first; if both signals above hold, **treat new-view creation as a manual
-Software Factory step and say so** rather than hunting for alternate entity names. Everything
-targeting an *existing* view is unaffected.
+**`scheduler_view` is writable through the write API**, together with its resource columns and
+time-cell conditional layouts. Add the views as details of the `scheduler` row, then set the
+scheduler's `default_scheduler_view_id` as an edit once the views exist. **(Indicium · split-domain)**
+If `scheduler_view` reports `allow_add/update/delete = false` with no bound tasks, you are looking at
+the read-only projection in `sf/manage_datamodel` — write it in `sf/manage_scheduler`.
+**(Indicium · single-domain)** It is writable in `sf/software_development`.
+`tab_variant_scheduler_view_overview` is not a creation route: it is a per-variant show/hide +
+conditional-layout toggle for an existing view.
 
-**Field semantics worth knowing** (the rest are self-describing):
+**Field semantics worth knowing** (the rest are self-describing; editability verified on an edit
+through the write API on SF 2026.2):
 
 | Field | What it actually does |
 |---|---|
 | `enable_sliding_window` | Off: a page spans the full range of the highest timescale (Jan 1–Dec 31 for a year). On: the window centres on *today* — quarter/month start a week back, year a month back |
 | `show_label_lowest_time_scale` | Off still slices cells at that interval for fine-grained drag-drop; it only suppresses the header labels |
-| `use_time_scale_*` + `time_scale_*_interval` | Which timescales are active, and the interval of each (e.g. every 2 hours) |
-| `min_displayed_time` / `max_displayed_time`, `hide_monday`…`hide_sunday` | Business-hours and weekday clamp |
+| `use_time_scale_*` + `time_scale_*_interval` | Which timescales are active, and the interval of each (e.g. every 2 hours). Setting a `use_time_scale_*` flag `true` fills its interval with `1`; each `time_scale_*_interval` stays hidden until its own `use_time_scale_*` is true, so send the flag first |
+| `min_displayed_time` / `max_displayed_time`, `hide_monday`…`hide_sunday` | Business-hours and weekday clamp. The `hide_*` flags and `day_label_format` become editable only once the day timescale is enabled — send `use_time_scale_day = true` first |
+| `scheduler_view_type` | Hidden in the write API's field view — don't send it |
 
 **Modeling rule of thumb**: the **highest** enabled timescale is the page you paginate through, the
 **lowest** becomes the individual cells, and anything between renders as an extra header row.
@@ -165,8 +174,8 @@ views expose exactly one resource column, `resource_name`, 250px wide.
 
 **Locating the row, verified**: don't assume "locate" means "add" — through the API in use, a direct
 add of a new `scheduler_view_resource_col` record (even when correctly routed as a detail of its
-`scheduler_view`) was rejected, because the actual writable surface for this data exposes a
-differently-named "overview" variant of the entity where **a row already implicitly exists for every
+`scheduler_view`) was rejected, because the actual writable surface for this data is
+`scheduler_view_resource_col_overview`, where **a row already implicitly exists for every
 candidate column** on the view's subject, defaulting to not-included. The correct approach is to
 address that existing row directly by its full key (`model_id`/`branch_id`/`tab_id`/
 `scheduler_view_id`/`col_id`) as an **edit**, then set `include_resource_col = true` and the
@@ -183,7 +192,7 @@ There is **no resource-column-specific conditional layout entity** — use an or
 `apply_to_scheduler_resource = true`.
 
 Whether a resource column warrants one at all is the canonical test in
-`thinkwise_sf_conditional_layouts`. The scheduler-specific candidates are a
+`thinkwise-sf-conditional-layouts`. The scheduler-specific candidates are a
 capacity/availability figure that can run low or over, a role/type that should stand out, or a status
 meaning the resource cannot currently take work. A plain always-populated label like `resource_name`
 rarely needs styling.
@@ -196,7 +205,8 @@ optional: a scheduler can rely entirely on activity-level HTML styling instead.
 
 For the entity/field reference, the condition and tag structure, the worked pattern for a varying
 per-period resource state, and the "work time" capacity pattern, read
-`references/time_cell_colouring.md`.
+`references/time_cell_colouring.md`. To reuse a layout on another view, build it once and clone it
+with `task_copy_scheduler_view_conditional_layout` — it copies the conditions too.
 
 ## Resource grouping
 
@@ -294,6 +304,13 @@ starting a migration.
 `to_scheduler_view_id` — useful for cloning a working timescale/pagination setup (e.g. `work_week`) onto
 a new table rather than re-typing every flag.
 
+**Delete order:** `task_delete_scheduler` fails while a resource column row exists, so run
+`task_delete_scheduler_view` for every view first, then delete the `scheduler`.
+
+The delete tasks leave the view's or layout's `transl_object` rows behind (`scheduler_view` 971,
+`scheduler_view_conditional_layout`/`_condition` 1032/1033) — delete those too (see
+`thinkwise-sf-translations`).
+
 ## Known pitfalls
 
 - **Nullable primary keys on `UNION`-based subjects break drag-and-drop** with a 400 error — synthesize
@@ -322,10 +339,10 @@ a new table rather than re-typing every flag.
   problem** — before concluding access is missing, retry it addressed as a detail of its owning
   table's record instead of as a standalone create. A rejected top-level add and a routing problem can
   look identical from the error alone.
-- **`scheduler_view_resource_col` is not directly addable, even correctly routed as a detail of its
-  `scheduler_view`** — the writable surface is an "overview"-style variant of the entity with a row
-  already implicit for every candidate column; locate and edit that existing row by its full key
-  instead of adding a new one.
+- **Resource columns are writable, but by edit, not add** — a plain add of
+  `scheduler_view_resource_col` is rejected; the writable surface is the "overview"-style variant with
+  a row already implicit for every candidate column. Edit that row by its full key
+  (`include_resource_col = true`, `order_no`, `col_width`).
 
 ## Pre-flight checklist
 

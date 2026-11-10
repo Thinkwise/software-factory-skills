@@ -1,6 +1,6 @@
 # Calling a message from SQL, parameters, options, and process-flow wiring
 
-Loaded on demand from `thinkwise_sf_messages`.
+Loaded on demand from `thinkwise-sf-messages`.
 
 ## Calling a message from SQL
 
@@ -16,7 +16,7 @@ exec dbo.tsf_send_message
 
 `tsf_send_message`'s real parameters, in order: `msg_id`, `parmtr_string` (the parameter XML, see
 below), `abort_ind`. This is itself an ordinary subroutine (see
-`thinkwise_sf_subroutines`) — call it exactly like any other, with named parameters.
+`thinkwise-sf-subroutines`) — call it exactly like any other, with named parameters.
 
 ### Abort behavior
 
@@ -39,7 +39,7 @@ message with a generic exception.
 **Database-platform behavior differs — don't assume SQL Server behavior is portable.** Oracle raises an
 application error for aborting messages; DB2 always aborts a sent message and additionally provides
 `v_message_text` for informational output specifically inside Defaults/Layouts. Check
-`branch_rdbms_type` (see `thinkwise_sf_control_procedures`) before writing an
+`branch_rdbms_type` (see `thinkwise-sf-control-procedures`) before writing an
 abort/rollback pattern and confirm against the target platform's real behavior, not just the SQL Server
 default above.
 
@@ -112,8 +112,9 @@ Confirmed by reading the identical row (same `transl` text "Yes") under two enti
 - **Editing the shared `yes`/`no` translation to fit one specific message's wording changes it on every
   other message using plain `yes`/`no` too**, silently. If a message needs its own distinct wording
   (e.g. "Release anyway" instead of a generic "Yes"), give that option a distinct `msg_option_id`
-  entirely (verified real examples from the base model: `yes_continue`, `yes_always`) — don't reuse
-  `yes` and then edit its shared translation.
+  entirely (base-model examples: `yes_continue`, `yes_always`) — don't reuse `yes` and then edit its
+  shared translation. Prefix a new message-specific id with its subject (`release_order_anyway`, not
+  `anyway`) so it can't collide with another message's option of the same generic id later.
 
 Best practices for option text:
 - Label with verbs and outcomes: **Release anyway**, **Return to planning**, **Cancel** — not bare
@@ -126,8 +127,8 @@ Best practices for option text:
 
 ## Wiring into a process flow — the Show message action
 
-Verified live against `process_action`'s metadata (this isn't yet documented in
-`thinkwise_sf_process_flows` — cross-reference this section from there):
+Verified live against `process_action`'s metadata (`thinkwise-sf-process-flows` points here for this
+action):
 
 - **Action type**: `process_action.process_action_type = show_msg` (enum value `350`) — the docs/
   research sometimes call this "Show message"; the modeled enum id is `show_msg`.
@@ -140,15 +141,22 @@ Verified live against `process_action`'s metadata (this isn't yet documented in
   pre-seeded `process_action_modeler_fixed_output` row keyed `output_parmtr_id = 'status_code'`
   (verified — this is a generic output present on the fixed-output enum, not `msg`-specific naming).
   Following the same pre-seeded/edit-only pattern documented in
-  `thinkwise_sf_process_flows`'s "Wiring runtime values" section: query for that existing
+  `thinkwise-sf-process-flows`'s "Wiring runtime values" section: query for that existing
   row (filtered by `process_action_id`), edit it to set `process_variable_id` to a matching-domain
   `process_variable`, then follow the action with one or more `decision` actions testing that variable's
-  value against the specific `msg_option_status_code`s to route each branch.
+  value against the specific `msg_option_status_code`s to route each branch. **The receiving variable
+  needs `process_input = true`**, or the decision's process procedure doesn't get it as a parameter —
+  regenerate the `PROCESSES` code group after changing it.
 - For a genuinely binary yes/no message, the plain `last_process_action_successful =
   successful`/`not_successful` step condition is enough — affirmative maps to `successful`, negative to
   `not_successful` — and the status-code capture above is unnecessary.
+- **Every kind of choice the message offers needs an outgoing step**: an affirmative option continues
+  on a step with condition `successful` (1) or `always` (2), a negative option on `not_successful` (0)
+  or `always` (2). A message without options is an information popup and needs one step out.
+- **No input mapping**: a `show_msg` action has no input parameters, so the message text can't carry a
+  value from the flow — don't put a `{0}` placeholder in a message that is only shown this way.
 
 Keep the technical work in tasks/subroutines and let the process flow coordinate the user interaction —
 a `show_msg` action should only ever present and branch, never itself contain business logic (see
-`thinkwise_sf_process_flows`'s "Process logic and control procedures" section for where
+`thinkwise-sf-process-flows`'s "Process logic and control procedures" section for where
 that logic actually belongs).

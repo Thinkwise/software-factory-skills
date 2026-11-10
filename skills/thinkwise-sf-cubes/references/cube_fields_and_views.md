@@ -1,16 +1,17 @@
 # Cube fields and cube views — dimensions, values, intervals, hierarchies
 
-Loaded on demand from `thinkwise_sf_cubes`.
+Loaded on demand from `thinkwise-sf-cubes`.
 
 ## Cube fields — dimensions and values
 
-Confirmed schema (`cube_field`):
+Confirmed schema (`cube_field`). Send every enum as its **number**, not its name — `summary_type`
+`'sum'` is refused:
 
 | Field | Purpose |
 |---|---|
-| `cube_field_type` | `dimension` or `measure` (="Value" — see above) |
+| `cube_field_type` | `dimension` (`0`) or `measure` (`1`, ="Value" — see above). Can't be changed after the add |
 | `col_id` | Source column on the underlying table |
-| `summary_type` | Aggregation: `average`, `count`, `min`, `max`, `stddev`, `stddevp`, `sum`, `var`, `varp`, `formula`, `sql_expression` — only meaningful for a value |
+| `summary_type` | Aggregation: `average` (`0`), `count` (`1`), `min` (`2`), `max` (`3`), `stddev`, `stddevp`, `sum` (`6`), `var`, `varp`, `formula` (`9`), `sql_expression` (`10`) — only meaningful for a value |
 | `summary_display_type` | How the aggregated number is shown: `default`, `percentage_of_column`, `percentage_of_row`, `percentage_of_variation`, `abs_variation` |
 | `no_of_decimals` | Display precision — set by business meaning, not raw DB scale |
 | `editable` | Whether this value can become an editable pivot cell (see "Editable values" — several other preconditions also apply) |
@@ -22,7 +23,9 @@ Confirmed schema (`cube_field`):
 
 Use `type_of_grp_interval` to reduce cardinality on a raw date/number into something users can
 actually scan: order date → `date_year`/`date_quarter`/`date_month`; lead time → `numeric` buckets
-via `grp_interval_numeric_range`. Per the research, day-of-week numbering starts at 1 = Sunday —
+via `grp_interval_numeric_range`. `type_of_grp_interval` is null and hidden until `grp_interval = true`; once
+the flag is on, set it explicitly (read the enum's value names from `get_entity_definition`) on every
+dimension that needs an interval — don't rely on a default. Per the research, day-of-week numbering starts at 1 = Sunday —
 confirm this matches user expectations before shipping a week-based view, and take particular care
 with fiscal calendars, week numbering, and daylight-saving boundaries.
 
@@ -46,6 +49,10 @@ parent-child *identity* (and is what makes a grouped child stop being independen
 field picker) — it does not by itself drive nested-row rendering from a single placement. Set
 `expand = true` on the outermost level's `cube_view_field` row so the tree opens one level deep by
 default rather than fully collapsed.
+
+A **year/month drill on one date column** is two fields on the same `col_id` — one with
+`type_of_grp_interval` `date_year`, one with `date_month` — with the month field's `cube_field_grp_id`
+set to the year field.
 
 ### Calculated fields — `cube_field_query`
 
@@ -73,9 +80,9 @@ aggregated numerator/denominator instead.
 `order_no`/`abs_order_no`, `cube_view_icon_id`, `screen_area_id`, `custom_display_type` (the same
 icon/text/overflow-fallback enum used by menu items and tasks — `icon_text_*`, `text_only_*`,
 `icon_only_overflow`, `overflow`, or `hidden`). Set `cube_view_icon_id` to a suitable icon as part of
-creating the view, per `thinkwise_sf_icons` — don't leave it unset by default.
+creating the view, per `thinkwise-sf-icons` — don't leave it unset by default.
 
-**Default presentation**: `default_cube_view_type` — `none`, `pivot_table`, or `chart`.
+**Default presentation**: `default_cube_view_type` — `none`, `pivot_table` (`1`), or `chart` (`2`).
 
 **Totals** (pivot): `show_col_grand_total`/`show_row_grand_total` (an extra column/row presenting
 the opposite axis's grand total), `show_col_total`/`show_row_total` (subtotals), `total_position` —
@@ -108,4 +115,4 @@ Groups views into a labeled submenu of the cube-view bar once there are enough v
 becomes hard to scan (`cube_view_grp_description`, `sub_menu` flag, `icon_id`, `custom_display_type`,
 `order_no`). Group by question or audience (Sales / Margin / Volume / Operations / Quality), not by
 creation order. Set `icon_id` to a suitable icon representing the shared question/audience, per
-`thinkwise_sf_icons`.
+`thinkwise-sf-icons`.

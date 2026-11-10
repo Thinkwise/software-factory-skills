@@ -1,6 +1,6 @@
 # Conditional layout — overlapping layouts, accessibility, and when not to use it
 
-Loaded on demand from `thinkwise_sf_conditional_layouts`.
+Loaded on demand from `thinkwise-sf-conditional-layouts`.
 
 ## Overlapping layouts
 

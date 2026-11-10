@@ -3,7 +3,7 @@
 `menu`, `list_bar_grp`/`tile_grp`/`module_grp`, and `list_bar_item`/`tile` are all translatable
 objects, and an object created through a proper bound creation task typically renders with an
 auto-generated bracket-placeholder label (`[main_menu]`, `[scheduler]`) until translated, the same
-auto-fallback pattern covered in `thinkwise_sf_translations`.
+auto-fallback pattern covered in `thinkwise-sf-translations`.
 
 **Behavior on this is inconsistent across sessions — check first, don't assume either way.** One
 session found that a `list_bar_grp`/`list_bar_item` created via the dependent-record-add pattern
@@ -23,19 +23,19 @@ the Software Factory's own UI** — a narrow, per-parent-type generate variant
 (`generate_transl_objects_list_bar_grp_*`) fails on its own hidden mandatory `branch_id`, and
 hand-adding `transl_object_transl` directly fails too (`appl_lang_id` is hidden-yet-mandatory on a
 fresh add). But routing through the *generic* `task_generate_transl_objects` bound to a
-manually-added `transl_object` row works — see `thinkwise_sf_translations`'s
+manually-added `transl_object` row works — see `thinkwise-sf-translations`'s
 "Backfilling a missing `transl_object` by hand" section for the full three-step recipe
 for exactly this object type. Follow that instead of falling back to a manual step.
 
 For everything else, after building out a menu's structure, run
-`thinkwise_sf_translations`' detection query to catch every new group/item still
+`thinkwise-sf-translations`' detection query to catch every new group/item still
 showing its raw ID in brackets, rather than assuming a sensible-looking `..._id` naming means it's
 already readable to end users. **Before calling the menu work done, run the translation completeness
-gate from `thinkwise_sf_data_model`'s "Translating new objects" section** as the final
+gate from `thinkwise-sf-data-model`'s "Translating new objects" section** as the final
 mechanical check — don't rely on remembering which group/item got translated during the build.
 
 **A group's real translation type is not what its name suggests, and an item's may not exist at
-all — see `thinkwise_sf_translations`'s `type_of_object` section for the full
+all — see `thinkwise-sf-translations`'s `type_of_object` section for the full
 finding.** In short: a `list_bar_grp`'s actual, UI-rendered label lives at `type_of_object = list_bar`
 (12), not `list_bar_grp` (78) — translating the latter commits with no error but is inert. And
 `list_bar_item` (79) has no working consumer found at all; a table/report-linked item just displays

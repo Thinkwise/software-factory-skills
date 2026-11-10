@@ -8,25 +8,23 @@ description: Reference guide for creating and assigning control procedures in a 
 Reference for the full control-procedure lifecycle: control procedure → template → program object
 item → program object (generated stored procedure/trigger/function/view/etc., deployed to the
 database, executed by the GUI or Indicium). Apply this whenever an MCP connector with Software
-Factory access (`sf_mcp`, `indicium`) is used to create, assign, or inspect control procedures Relevant entity sets: `control_proc`, `control_proc_template`, `code_grp`, `prog_object`,
+Factory access is used to create, assign, or inspect control procedures. Relevant entity sets: `control_proc`, `control_proc_template`, `code_grp`, `prog_object`,
 `prog_object_code`, `prog_object_item`, `prog_object_item_parmtr`, `generate_object_code`,
-`branch_rdbms_type`, and — for the Task code type specifically — `task`, `tab_task`, `task_parmtr`
-(see "Creating a brand-new Task" below). Relevant tasks — two distinct ones, not interchangeable (see "Actually
+`branch_rdbms_type`, and — for the Task code type specifically — `task`, `tab_task`, `task_parmtr`, `tab_task_parmtr`
+(see "Creating a brand-new Task" in `references/reuse_and_round_trip.md`). Relevant tasks — two distinct ones, not interchangeable (see "Actually
 generating code" below): `task_generate_code_grp` (bound to `control_proc` and to the Assigning
 screen's `static_assignment_overview`) creates missing `prog_object` placeholders but does not itself
 produce code; `task_add_job_to_generate_object_code` (bound to `prog_object_code`/
 `prog_object_overview`) is what actually queues a generation job and writes
 `prog_object_generated_code`. `task_review_control_proc` (bound to `control_proc`) is the closing
-step that moves a finished procedure to Ready for review (step 9 below). Domain keys observed in this environment: `manage_model`/`data_modeling`
-(meta-model entities) and `manage_functionality` (Functionality screen tasks) — try these directly
-first (e.g. a `get_entity_definition`/`search_domain_capabilities` call against the expected domain);
-only fall back to `search_capabilities`/`get_available_domains` on an
-`entity_set_not_found`/`domain_not_found`-style rejection, rather than re-discovering the domain
-pre-emptively every time.
+step that moves a finished procedure to Ready for review (step 9 below). Domain: split-domain
+instances `sf/manage_control_procedures` (meta-model entities such as `tab`/`col` sit in a separate
+data-model domain); single-domain `sf/software_development`; otherwise find it with
+`search_domain_capabilities`.
 
 ## Before writing anything: confirm the plan
 
-This skill's confirm-before-mutate obligation (see `thinkwise_sf_base`'s "Shared
+This skill's confirm-before-mutate obligation (see `thinkwise-sf-base`'s "Shared
 conventions") has a concrete shape here: before the first `stage_resource` call touching
 `control_proc` (or any related entity), state the plan in plain language and get the user's
 explicit confirmation. At minimum, name:
@@ -107,10 +105,10 @@ patterns, and a testing checklist by concept, read
 this file covers how to wire whatever concept you land on through the API, not which one to pick or
 what it should contain.
 
-## Code groups (the 24 "code types")
+## Code groups (the "code types")
 
-**Pull the live list from the `code_grp` entity set — don't assume which of the 24 groups exist or
-what they're called.** This is the authoritative source; anything hardcoded here can drift stale.
+**Pull the live list from the `code_grp` entity set — don't assume how many groups exist (26 on SF
+2026.2) or what they're called.** This is the authoritative source; anything hardcoded here can drift stale.
 
 Two broad families exist:
 - **Business-logic groups** fire per-record/session and expose runtime `@`-prefixed variables (see
@@ -178,7 +176,8 @@ concept at each level, read `references/enablement_flags.md`.
 Full per-code-type input/output variable table (Default, Layout, Context, Trigger/event, Handler,
 Change detection, Badge, Process, Task), the Handler-Update PK-parameter gotcha (`@upd_[pk_col_id]`
 vs. `@[pk_col_id]`), the `@cursor_from_col_id` initial-default-vs-reactive-recompute pattern, and the
-dialect-dependent variable-name-prefix note (`@[col_id]` T-SQL vs. `p_[col_id]` PostgreSQL) all live in
+dialect-dependent variable-name-prefix note (`@[col_id]` T-SQL vs. `p_[col_id]` PostgreSQL, where `v_`
+is only for locals the template declares itself) all live in
 `references/code_type_variables.md` — read it once the target code type is known, to get the exact
 input/output variable names for that code type before writing the template body.
 
@@ -200,8 +199,8 @@ Three things to carry:
   code's header comments instead.
 
 For the full reference (the junction entities and their keys, parameter substitution, the ordering
-rules, the complete two-task sequence with its failure modes, and the known standalone-subroutine
-gap), read `references/assignment_and_generation.md`. Before writing anything new, check the reuse
+rules, the program-object names and framework wrapper `order_no`s, the complete two-task sequence
+with its failure modes, and how a standalone subroutine gets its placeholder), read `references/assignment_and_generation.md`. Before writing anything new, check the reuse
 decision order and how generated code round-trips to its template in
 `references/reuse_and_round_trip.md`.
 
@@ -228,7 +227,7 @@ decision order and how generated code round-trips to its template in
    (e.g. `-- placeholder`) to get past the mandatory check, then overwrite it with the real SQL once
    the scaffold/parameter set has been seen. **`template_code` is specifically prone to the general
    "last field in a combined write can silently drop" quirk** (see
-   `thinkwise_sf_data_model`) — reproduced repeatedly across separate control procedures in
+   `thinkwise-sf-data-model`) — reproduced repeatedly across separate control procedures in
    one session, always when set together with `template_description` or another field in the same
    write. **Re-tested and fixed**: the drop was an ordering artifact, not a genuine random
    bug. Setting `template_description` first and `template_code` last in the same combined
@@ -247,7 +246,9 @@ decision order and how generated code round-trips to its template in
    enabled `rdbms_type` generated and deployed, not just the first that succeeded.
 9. **Mark it Ready for review — always, as the closing step.** Once the procedure is finished and
    deployable, which means its `prog_object_generated_code` was read back and contains your logic,
-   `generated_code_stale` is `false`, and the deploy succeeded (or the user put deploying out of scope),
+   `generated_code_stale` is `false` (which needs the queued object-code job; if jobs are out of scope,
+   say the procedure isn't finished yet and stop before this step), and the deploy succeeded (or the
+   user put deploying out of scope),
    run the bound task `task_review_control_proc`. Don't ask first: it's the standard end of the
    lifecycle and easy to undo with `task_set_control_proc_status_to_development`.
    - `stage_task` with `task_name: "task_review_control_proc"`, `entity_set: "control_proc"`,
@@ -261,6 +262,14 @@ decision order and how generated code round-trips to its template in
      `0` (development) to `3` (review) and `control_proc_status_icon` from `2` to `4`. A
      `change_log_overview` row (the Code review tab) is created for it.
    - Multi-dialect: one run per dialect's `control_proc`.
+
+### Moving a procedure past review (reported, not re-verified)
+
+Reported on SF 2026.2, not re-verified: `control_proc.development_status` is not editable through the
+write API, and `task_complete_control_proc` returns 403. The route that worked: review (`0` → `3`, step 9
+above), then a comment, then approval through the change log (Code review tab). An approval while a
+comment is still open fails with 422 `change_log_open_comments` — resolve the comments first. Treat
+this as the expected shape, and tell the user if any step is refused.
 
 ### Worked example: an idempotent seed
 
@@ -312,8 +321,8 @@ owning template, dynamic model code, and the calculated-column `_query` split, r
   element list — the same lookup the mock-data guidance already requires for enum columns — rather
   than assuming the elements' display order maps directly to sequential integers, before hardcoding
   literals in the `case`/`if`.
-- After a brand-new static assignment, re-ran `task_generate_code_grp` bound to your *own* control
-  procedure (not the bootstrap one) before generating, and read the generated text back to confirm
-  your logic — not just the status — actually landed. See point 5 of "Actually generating code"
-  above. (`prog_object` itself stays non-writable throughout; always go through that task.)
+- After every new static assignment, re-ran `task_generate_code_grp` bound to your *own* control
+  procedure before generating — also when the `prog_object` already existed — and read the generated
+  text back to confirm your logic, not just the status, landed. See point 6 of "Actually generating
+  code" in `references/assignment_and_generation.md`.
 

@@ -52,7 +52,7 @@ tables/columns can be excluded. Real examples seen in production:
   translated `#msg` row (`msg_id`, `msg_description`, `msg_location_id = 'popup'`,
   `msg_regular_expression` capturing the raw DB error) automatically, instead of hand-modeling one
   message per constraint. A `msg` row created this way is itself a translatable object (see
-  `thinkwise_sf_translations`) — the dynamic-model procedure inserting `#msg`
+  `thinkwise-sf-translations`) — the dynamic-model procedure inserting `#msg`
   rows should also generate (or a follow-up pass should fill in) the corresponding
   `transl_object_transl` text, or the constraint message renders as a bracket-placeholder
   (`[msg_id]`) instead of real text the first time it fires.

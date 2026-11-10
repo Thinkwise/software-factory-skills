@@ -1,21 +1,22 @@
 # Cube screen types, user customization, modeling friction, and a worked example
 
-Loaded on demand from `thinkwise_sf_cubes`.
+Loaded on demand from `thinkwise-sf-cubes`.
 
 ## Screen types, components, and per-variant overrides
 
 The default cube-capable screen types are `cube`, `cube_horizontal`, and `cube_no_fields`; the
 available components are **Pivot table**, **Chart**, **Cube panel**, and **Cube view bar** — assigning
-these to a table's screen type follows the exact same mechanics as any other screen type (pick from
-what already exists in the model; creating a new screen type isn't supported via MCP — see
-`thinkwise_sf_build_planner`). The platform removes the Pivot table component
+these to a table's screen type follows the exact same mechanics as any other screen type (prefer what
+already exists in the model — see `thinkwise-sf-build-planner`; a new screen type can be built per
+`thinkwise-sf-subject-components`' `references/screen_types.md`, but cube components on it are
+unverified). The platform removes the Pivot table component
 automatically whenever no cube definition exists for the effective subject — if a screen looks like
 it's missing its pivot, check that a `cube` row actually exists for that table before assuming a
 component-wiring bug.
 
 ### Per-table-variant overrides
 
-Same field-level inheritance pattern documented generically in `thinkwise_sf_variants`
+Same field-level inheritance pattern documented generically in `thinkwise-sf-variants`
 (no Setup/snapshot step — plain override, tracked until it diverges):
 
 - `tab_variant_cube_overview` (`cube_id` + `tab_variant_id`) — per-variant `default_cube_view_id` and

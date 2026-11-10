@@ -1,10 +1,9 @@
 # Mock data step-by-step guide (`data_set` → `tab_data`)
 
-Confirmed live end-to-end against `sf_mcp`, domain `manage_unit_tests` (2026-08-06, model
-`RK_SCHEDULER_TEST`), after the connecting user granted table-level permissions on `data_set`,
-`data_set_tab`, and `tab_data`. **This supersedes any earlier claim in this skill family that mock rows
-are "not writable"/"API-blocked"/"manual Software Factory step only" — that conclusion was a permissions gap on
-one connector/user, not a platform limitation.** Every entity below has a working API path once granted.
+All entities below live in the unit-test domain (see the main skill file) and are writable through
+an Indicium MCP connector once the connecting user has table-level permissions on `data_set`,
+`data_set_tab`, and `tab_data`. Mock rows are not "API-blocked" — a refusal here is a permissions gap,
+not a platform limitation.
 If you hit a 403 or a field stuck in `hidden`/`readonly` state that this guide says should be editable,
 suspect a missing grant first (see "Permissions" at the end) before falling back to a manual step.
 
@@ -43,7 +42,7 @@ you go deeper).
 
 ## Step 0 — resolve context
 
-Pin `model_id`/`branch_id` per `thinkwise_sf_base`. Get `rdbms_type` from
+Pin `model_id`/`branch_id` per `thinkwise-sf-base`. Get `rdbms_type` from
 `branch_rdbms_type` (usually a single row; `0`=sqlserver, `1`=iseries, `3`=oracle, `4`=postgresql) — you
 need this value for every `tab_data_col_overview` key.
 
@@ -96,7 +95,7 @@ execute_odata_query: /data_set_col_selection?$filter=model_id eq '...' and branc
   and data_set_id eq '...' and tab_id eq '...'&$select=col_id,selected,mand
 ```
 
-Check `mand` (mandatory) per column from `col` in `manage_datamodel` if not already visible. **Every
+Check `mand` (mandatory) per column from `col` (data-model domain) if not already visible. **Every
 mandatory column must be selected**, or the row you create in Step 4 has no value to give it and the
 mock insert will be incomplete/wrong. Optional columns only need selecting if the scenario actually
 reads them.
@@ -162,7 +161,7 @@ Critical details:
   datetime-equality quirk documented elsewhere in this skill, this is a normal UI-facing field, not a raw
   SQL literal.
 - **Enum-domain columns** (e.g. a `tinyint` status/stage column backed by a Thinkwise domain with named
-  elements) need the underlying **`db_value`** from `elemnt` (`manage_datamodel` domain, filtered by
+  elements) need the underlying **`db_value`** from `elemnt` (data-model domain, filtered by
   `dom_id`), not the `elemnt_id` label. E.g. for a `dom_id='opportunity_stage'` domain with elements
   `prospecting`/`qualification`/`proposal`/…, the actual `value` to write is `elemnt.db_value`
   (`"0"`/`"1"`/`"2"`/…), found via:
@@ -171,7 +170,7 @@ Critical details:
     &$select=elemnt_id,db_value&$orderby=order_no
   ```
 - **Colour/hex-looking domains backed by a physical `int` type** (check the domain's data type in
-  `manage_datamodel`'s `dom` entity before assuming a colour-sounding column takes hex-string input)
+  the data-model domain's `dom` entity before assuming a colour-sounding column takes hex-string input)
   need the plain **decimal integer** equivalent of the colour, not a `"#RRGGBB"` string — a hex-string
   value gets emitted unquoted into the generated insert SQL as an invalid token, which fails as a
   parse-time syntax error rather than a clean validation rejection. Convert the hex value to decimal
@@ -201,7 +200,7 @@ will hit a real FK constraint violation at run time (the row-creation/value-sett
 still succeed with no error; the failure only shows up when the test runs).
 
 Recipe:
-1. Find every mandatory FK column on the table you care about (`col` in `manage_datamodel`, filtered by
+1. Find every mandatory FK column on the table you care about (`col` in the data-model domain, filtered by
    `tab_id`, `$select=col_id,mand`, cross-referenced against which columns are references — a `dom_id`
    of `id` combined with a `col_id` ending `_id` that isn't the table's own PK is a strong signal, but
    confirm the actual FK target via the table's `ref`/`ref_col` metadata if unsure).

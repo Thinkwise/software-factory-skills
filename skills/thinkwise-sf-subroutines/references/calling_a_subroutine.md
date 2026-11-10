@@ -1,6 +1,6 @@
 # Calling a subroutine from every place it can be invoked
 
-Loaded on demand from `thinkwise_sf_subroutines`.
+Loaded on demand from `thinkwise-sf-subroutines`.
 
 ## Calling a subroutine — every place it gets invoked from
 
@@ -19,10 +19,10 @@ A subroutine has no UI surface of its own; it only ever runs because something e
 - **From a query, view, or calculated column** — scalar use is concise
   (`select dbo.calculate_age(employee.birth_date, @as_of_date) from employee`), but repeated per-row
   scalar execution can be slow; prefer a set-based expression, join, `apply`, or an inline table-valued
-  function for bulk use. A Template-method view (`thinkwise_sf_views`) can call a
+  function for bulk use. A Template-method view (`thinkwise-sf-views`) can call a
   subroutine directly in its `SELECT`.
 - **From a process flow — there is no dedicated "call subroutine" process action, verified.** Two
-  mechanisms carry real SQL in a process flow (see `thinkwise_sf_process_flows`'s "Process
+  mechanisms carry real SQL in a process flow (see `thinkwise-sf-process-flows`'s "Process
   logic and control procedures" section):
   1. A `decision` action with `use_processes = true` opts that action into the `PROCESSES` code group;
      its control procedure can call the subroutine directly. Use this for a code-only step between two
@@ -30,14 +30,14 @@ A subroutine has no UI surface of its own; it only ever runs because something e
   2. More commonly, an `execute_task`/`execute_system_task` action calls a task whose own **Stored
      procedure**-type logic (in the `TASKS` code group) calls the subroutine.
 - **From a task** — the task's Default/Layout/Handler/Task-type control procedure calls it exactly like
-  any other control-procedure code type (`thinkwise_sf_tasks`).
+  any other control-procedure code type (`thinkwise-sf-tasks`).
 - **From external applications, via Indicium** — only once `api`/`basic_api` is enabled (see below).
   External clients should never depend on the generated routine's internal name/ordering; call only
   through the published API contract.
 
 ### SQL restrictions by code type, when writing a subroutine's own body
 
-From `thinkwise_sf_control_procedures`'s SQL style guide, the subroutine-specific
+From `thinkwise-sf-control-procedures`'s SQL style guide, the subroutine-specific
 rules:
 - **Subroutines (functions)**: no cursors, no explicit transactions, no table writes, no messaging —
   pure functions only.

@@ -1,6 +1,6 @@
 # Worked example — a sales revenue cube
 
-Loaded on demand from `thinkwise_sf_cubes`.
+Loaded on demand from `thinkwise-sf-cubes`.
 
 ## Practical example — a sales revenue cube
 

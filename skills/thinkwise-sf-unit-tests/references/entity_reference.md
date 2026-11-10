@@ -1,10 +1,8 @@
 # Unit test entity reference
 
-Confirmed live against a connected Software Factory model (domain `manage_unit_tests`, checked
-against `manage_control_procedures`/`manage_datamodel`/`manage_cubes` as fallbacks — none of those add
-anything beyond what's below). Every entity's key is `model_id, branch_id, ...` — omitted below except
-where noted. Re-verify against the live connector before trusting field names across versions, same as
-any other skill in this family.
+All entities below live in the unit-test domain (see the main skill file). Every entity's key is
+`model_id, branch_id, ...` — omitted below except where noted. Re-verify against the live connector
+before trusting field names across versions, same as any other skill in this family.
 
 ## `unit_test` — the test definition
 
@@ -18,8 +16,8 @@ Key: `model_id, branch_id, unit_test_id`
 | `unit_test_description` | string, translatable | Full sentence: condition + expected result. Never leave vague/empty — see main skill file. |
 | `should_abort` | bool | Stop the whole automated run if this test fails. Reserve for failures that make subsequent tests meaningless — not a default. |
 | `should_rollback` | bool | Asserts that the tested logic itself reverses its own mutations. **Its outcome tracking (`was_rolled_back` on the result) has only been confirmed reliable for `HANDLE_UPDATE`-type tests.** For `TRIGGER_INS`/`TRIGGER_UPD`/`TRIGGER_DEL`, `TASK`, and `HANDLE_INSERT`/`HANDLE_DELETE`, `was_rolled_back` has been observed to stay `false` regardless of the target code's actual behavior — including cases where the code contains an explicit rollback statement — which spuriously fails an otherwise-correct test. Default this to `false` for those four types and rely on `should_abort` plus the message/assertion checks instead; repeated re-runs against the same hardcoded fixture ids did not produce duplicate-key errors, indicating each run's data changes are isolated independently of this flag. See "Tasks and handlers" in `test_design_guide.md` for the fuller reasoning. |
-| `use_preparation_query` | bool | Gate for `preparation_query`. **Toggling this (or `use_assertion_query` below) can reset the *other* query-text field to null/placeholder as a side effect of the record's own dynamic layout**, reproduced repeatedly. After any patch that touches either flag, re-read `preparation_query`/`assertion_query` and re-patch if needed rather than assuming a value set earlier in the same edit session survived. |
-| `preparation_query` | string | SQL run before the test — set a controlled setting, fix an effective date, prep something mock rows can't represent. Keep sparing; if most of the scenario lives here, the test is hard to review. **If this inserts an explicit value into an identity-typed primary key** (the usual advice — see "Always mock identity/PK values explicitly" below, which applies here too even when bypassing the `data_set`/`tab_data` pipeline), wrap that table's insert in `SET IDENTITY_INSERT <table> ON` / `OFF` (SQL Server; confirm the equivalent on other platforms via `branch_rdbms_type`) or the insert is rejected outright with an identity-column error. |
+| `use_preparation_query` | bool | Gate for `preparation_query`. **Toggling this (or `use_assertion_query` below) can reset the *other* query-text field to null/placeholder as a side effect of the record's own dynamic layout**, reproduced repeatedly. After any patch that touches either flag, re-read `preparation_query`/`assertion_query` and re-patch if needed rather than assuming a value set earlier in the same edit session survived. Send each query in the same write as its own `use_*` flag, flag first: the query field stays hidden until the flag is set, and the text counts only with the flag on. |
+| `preparation_query` | string | SQL run before the test — set a controlled setting, fix an effective date, prep something mock rows can't represent. Keep sparing; if most of the scenario lives here, the test is hard to review. The test database starts empty: insert every mandatory column that has no identity or default, parents before children. It runs in one batch with `assertion_query` — never declare the same variable in both ("already been declared"). **If this inserts an explicit value into an identity-typed primary key** (the usual advice — see "Always mock identity/PK values explicitly" below, which applies here too even when bypassing the `data_set`/`tab_data` pipeline), wrap that table's insert in `SET IDENTITY_INSERT <table> ON` / `OFF` (SQL Server; confirm the equivalent on other platforms via `branch_rdbms_type`) or the insert is rejected outright with an identity-column error. |
 | `use_assertion_query` | bool | Gate for `assertion_query`. See the toggle-reset caution on `use_preparation_query` above — it applies symmetrically. |
 | `mock_data_used` | bool | Whether a linked `data_set` is actually applied. |
 | `assertion_query` | string | SQL asserting the observable outcome — row counts, exact values, absence of unexpected rows. Call `tsf_send_assertion_msg` (see examples below) rather than relying on a bare query result. |
@@ -32,7 +30,7 @@ Key: `model_id, branch_id, unit_test_id`
 | `control_proc_id` | FK | The control procedure whose logic is under test — traceability link; **not always the same value as `task_id`**, verify separately. |
 | `result_status` | Byte enum | Last-run outcome: `successful=0, model_mismatch=1, failed=2, not_executed=4, executing=5, scheduled=6`. Distinct from the `test_unit_test` job-status enum below — don't conflate. |
 | `start_date_time` | datetime | Last run start. |
-| `active` | bool | Inactive tests don't run in a batch — prefer deactivating over deleting a temporarily-broken test. |
+| `active` | bool, read-only | Inactive tests don't run in a batch — prefer deactivating over deleting a temporarily-broken test. Change it only with `task_activate_unit_test`/`task_deactivate_unit_test`. |
 | `insert_user`/`insert_date_time`/`update_user`/`update_date_time` | audit | Standard audit columns — present, so this is a normal writable entity. |
 | `generated_by_control_proc_id` | FK, nullable | Set only if a dynamic-model procedure owns/regenerates this row. |
 
@@ -43,25 +41,22 @@ navigation properties confirmed on `unit_test` are: `unit_test_col_filter` (as `
 `unit_test_msg`, `unit_test_output_parmtr_overview` (+ `.condition`/`.parmtr_type` variants),
 `unit_test_progress`, `unit_test_query`, `unit_test_result`.
 
-**`unit_test.model_id`/`branch_id` are hidden and reject direct writes on a fresh insert** — a
-top-level add leaves them null with no way to patch them (a lookup field like `tab_id`/`control_proc_id`
-then 403s because the model/branch context is missing). Adding the row as a dependent record under
-`control_proc` does resolve that hidden context and pre-fill `control_proc_id` — **but `type_of_object`
-itself has been confirmed to still reject a patch as an unknown property on that path**, even though the
-staged record's dynamic field list shows it as editable; a field appearing editable in that per-instance
-response is not proof the same access path's static schema actually accepts a write to it.
+**Creating a `unit_test` row: a plain add under `branch` works** (verified on SF 2026.2). The model and
+branch come from the parent — a top-level add without a parent leaves them null and unpatchable. The
+commit needs `unit_test_type_id` (without it: `422 gui_cannotsavemandatory`). Order the properties per
+`thinkwise-sf-base`'s ordered-write rule — then, by type:
+- `DEFAULT`, `LAYOUT`, `BADGE` — `type_of_object` is editable and mandatory (`0` table, `11` task,
+  `10` report). Send it as the raw number with `value_kind: "data"`, **after** `unit_test_type_id`
+  (setting the type clears it) and **before** `tab_id`/`task_id`/`report_id`, which stay read-only
+  until it is set.
+- `TASK` — the Software Factory derives `type_of_object` (`11`); don't send it. Set `task_id`.
+- `CONTEXT`, `TRIGGER_*`, `HANDLE_*` — `type_of_object` is derived (`0`); set `tab_id`.
 
-**The reliable way to create a new `unit_test` row across `DEFAULT`, `HANDLE_UPDATE`,
-`TASK`, `TRIGGER_UPD`, `HANDLE_INSERT`, and `HANDLE_DELETE`: use `task_copy_unit_test` (see the task
-table below) to copy *any* existing `unit_test` row — regardless of its type — as a scaffold, then
-override `to_unit_test_id`/`unit_test_type_id`/`type_of_object`/the target field
-(`tab_id`/`task_id`/etc.)/`control_proc_id` on the same staged task call before committing.** This
-resolves the hidden `model_id`/`branch_id` context, makes `type_of_object` and the target field settable
-together, and avoids the dependent-add path's `type_of_object` rejection entirely. Only fall back to a
-plain dependent-add under `control_proc` for fields it disallows changing (rare) — don't treat it as the
-default creation path. After the copy, re-check for copied-over child rows before adding new ones (see
-the `task_copy_unit_test` entry below) — a column name shared between the source and target table for
-unrelated reasons can carry a stray input row across even when the object types differ.
+`task_id` and `control_proc_id` are editable. `preparation_query`/`assertion_query` stay hidden until
+their `use_*` flag is set. `task_copy_unit_test` (see the task table below) is only for cloning an
+existing test; after a copy, re-check for copied-over child rows before adding new ones — a column name
+shared between the source and target table for unrelated reasons can carry a stray input row across
+even when the object types differ.
 
 ## `unit_test_condition` — 16 values
 
@@ -94,11 +89,13 @@ at, and above a limit" scenario is a natural `between`/`not_between` pair).
 **Writing this field on an output/filter row needs the same numeric-string-plus-explicit-data-kind
 treatment as `type_of_data_value` on `tab_data_col_overview`** (see `mock_data_guide.md`) — patching it
 with the enum's display label (e.g. `"equal_to"`) 400s with an invalid-input error; patch the numeric
-string (`"0"`, `"1"`, …) with the value explicitly marked as a data value instead.
+string (`"0"`, `"1"`, …) with the value explicitly marked as a data value instead. The same holds for
+every enum on an output row: send numbers, not enum names. `expected_output_value_until` and
+`filter_value_until` stay hidden until the condition is `between` (6) or `not_between` (13).
 
-## `unit_test_parmtr_type` — 2 values
+## `unit_test_parmtr_type` — an enum field with 2 values, not an entity set
 
-`parmtr_type` ("type") / `parmtr_mand` ("mand") — used on `unit_test_col_type`,
+`parmtr_type` ("type") / `parmtr_mand` ("mand"), sent as its number — a field on `unit_test_col_type`,
 `unit_test_task_parmtr_type`, `unit_test_ref_output`, `unit_test_tab_report_output`,
 `unit_test_tab_task_output` to select whether the expected-output row is checking the field's *type*
 (hidden/visible/read-only/editable, or task/report/detail availability) or its *mandatory* flag.
@@ -130,7 +127,7 @@ property from `unit_test` — filter directly on `unit_test_id`.
 | `unit_test_fixed_parmtr_input` | `unit_test_parmtr_id` | `input_value` | Shared fixed parameters — chiefly `cursor_from_col_id` (which column triggered a default). |
 | `unit_test_fixed_parmtr_output` | `unit_test_parmtr_id` | `unit_test_condition`, `expected_output_value(_until)` | Expected value of a fixed parameter. |
 | `unit_test_msg` | `expected_msg_id` | — (nav `lookup_expected_msg_id` → `msg`) | Expected validation/warning message for the sad-flow path. |
-| `unit_test_query` | `unit_test_id, rdbms_type` (enum: `sqlserver=0, iseries=1, oracle=3, postgresql=4`) | `preparation_query`, `assertion_query` | Per-dialect override of the generic prep/assertion query on a multi-RDBMS model — same reasoning as `control_proc_template` per dialect (see `thinkwise_sf_control_procedures`). |
+| `unit_test_query` | `unit_test_id, rdbms_type` (enum: `sqlserver=0, iseries=1, oracle=3, postgresql=4`) | `preparation_query`, `assertion_query` | Per-dialect override of the generic prep/assertion query on a multi-RDBMS model — same reasoning as `control_proc_template` per dialect (see `thinkwise-sf-control-procedures`). |
 
 **The table above is correct for reads (filter directly on `unit_test_id`) but a direct `add` on most
 of these entities is rejected outright** on `unit_test_col_input`, and the same shape
@@ -142,11 +139,22 @@ as a dependent record under `unit_test` (only one detail navigation candidate, s
 Set `parmtr_id` to the column id, task-parameter id, subroutine-parameter id, *or* fixed-parameter id
 (e.g. `cursor_from_col_id`) — the row auto-resolves the matching `unit_test_parmtr_id` and the
 parameter-kind `type_of_object` (see the note on that field name above) regardless of which kind of
-parameter it turned out to be. Then set `input_value`, or `unit_test_condition` +
-`expected_output_value` for an output row. **To leave a column/parameter at its natural blank/null
-state, don't create a row for it at all** — `input_value`/`expected_output_value` are mandatory on a
-row that exists, so a null-input scenario is expressed by omission, not by an empty value (which fails
-to commit). **The same routing applies to delete.** Removing a stray row — e.g. one that carried over
+parameter it turned out to be: `32` task parameter, `1` column, `826` fixed parameter, `92` reference.
+**Never send `unit_test_parmtr_id` or `type_of_object` yourself.** On an output row with
+`unit_test_parmtr_type` set, `unit_test_parmtr_id` becomes `parmtr_id` plus `_type` or `_mand`. Query
+`unit_test_object_parmtr` (read-only) for the exact `unit_test_parmtr_id` and `type_of_object` each
+input and output of the test may use. Then set `input_value`, or `unit_test_condition` +
+`expected_output_value` for an output row. A `TASK` test's expected output needs a task parameter with
+`task_output` set.
+**Read the existing input rows before adding any.** The Software Factory supplies
+`unit_test_input_parmtr_overview` rows itself — one per mandatory task parameter (type `32`) on a
+`TASK` test, one per mandatory non-identity, non-calculated column (type `1`) on a `TRIGGER_INS` test.
+On a `TASK` test these rows are virtual until edited: they show in a read but are stored only once
+`input_value` is set on them. Edit `input_value` where a row shows — an add for the same parameter
+collides — and add the rest with `parmtr_id` + `input_value`.
+**Blank/null inputs:** `input_value` is mandatory on `DEFAULT` and `CONTEXT` tests, so there a
+null-input scenario is expressed by omitting the row; on a trigger test an empty `input_value` sets
+`NULL`. **The same routing applies to delete.** Removing a stray row — e.g. one that carried over
 incorrectly from a cross-table `task_copy_unit_test` because the source and target tables happened to
 share a column/parameter name — must go through the same overview entity; a direct delete on
 `unit_test_col_input`/`unit_test_col_output` themselves is rejected the same way a direct add is.
@@ -159,7 +167,8 @@ logically identical instant in a different format (e.g. `01/01/2026 10:00:00` vs
 `TASK`/etc. test with an `equal_to` datetime output fails despite the logic looking right, check
 `unit_test_result_parmtr.output_value` for that run (see "Object catalog and results" below) and
 re-enter `expected_output_value` in that exact raw format (SQL Server: `yyyy-MM-dd HH:mm:ss.fffffff`,
-7 fractional digits) rather than guessing at a "nicer" format.
+7 fractional digits) rather than guessing at a "nicer" format. A `date_time` *input* is stored as
+`MM/dd/yyyy HH:mm:ss` even when it is sent in ISO format.
 
 **The same string-match behavior applies to money/decimal domains.** A domain stored with fixed
 decimal places returns its full formatted string (e.g. `"0.00"`), so an `expected_output_value` of
@@ -197,7 +206,7 @@ Two API paths remain useful even with full permissions:
   permissions genuinely can't be granted, or there's no existing `data_set` row anywhere in the model to
   clone the very first one from.
 
-`sample_data_set` (`manage_datamodel`, key `sample_data_set_id` Int32, column `data_set_name`) is an
+`sample_data_set` (a data-model entity, key `sample_data_set_id` Int32, column `data_set_name`) is an
 **unrelated** feature — domain-level example values, not unit-test mock data. Don't confuse the two
 despite the similar name.
 
@@ -206,7 +215,7 @@ despite the similar name.
 | Entity | Purpose |
 |---|---|
 | `unit_test_object`, `unit_test_object_control_proc`, `unit_test_object_parmtr` | Which object types/control-procs/parameters each `unit_test_type_id` supports — the schema behind the "Choosing the test type" table. **Also useful as a discovery tool**: query `unit_test_object` filtered by `unit_test_type_id` to list every pickable target (table/task/etc.) of that kind on the branch, keyed by its real `tree_unit_test_object_id`/`unit_test_object_id` — the fastest way to confirm the actual `tab_id`/`task_id` bound to a `control_proc_id` when the task or table name doesn't obviously match the control procedure's name. |
-| `unit_test_type`, `unit_test_type_object`, `unit_test_type_fixed_parmtr` | Catalog of test types and which object-type/fixed-parameter combos each supports — the authoritative source for `type_of_object` values and the full `unit_test_type_id` list, instead of hardcoding either. |
+| `unit_test_type`, `unit_test_type_object`, `unit_test_type_fixed_parmtr` | Catalog of test types and which object-type/fixed-parameter combos each supports — the authoritative source for `type_of_object` values and the full `unit_test_type_id` list, instead of hardcoding either. Global, not per model: `unit_test_type_object` has no `model_id`/`branch_id`, so don't filter on them. |
 | `unit_test_result`, `unit_test_result_assertion`, `unit_test_result_mismatch`, `unit_test_result_msg`, `unit_test_result_parmtr`, `unit_test_result_parmtr_type`, `unit_test_result_parmtr_overview` | Per-run result detail (key includes `unit_test_result_id` Int64) — what actually happened on the last execution, beyond the summary `unit_test.result_status`. **For a crashed run (the transaction was aborted/rolled back, not a clean assertion mismatch), check `unit_test_result_msg.actual_msg` first** — it holds the actual raw database error text (e.g. a missing-stored-procedure error), not just expected-message assertions for the sad-flow path; `unit_test_result_assertion`/`unit_test_result_mismatch` come back empty in this case since execution never reached the assertion. |
 | `unit_test_progress` | Live progress row (key `model_id, branch_id`) for a currently-running batch. |
 | `test_unit_test` / `test_unit_test_overview` | The batch-execution job record (key `job_id` Int64). Status enum: `scheduled=0, executing=1, wait_for_user=2, successful=3, failed=4, cancelled=5, aborted=6, warning=7, info=8`. **Different enum from `unit_test.result_status`** — this one tracks the batch job, that one tracks the individual test's last outcome. |
@@ -214,18 +223,16 @@ despite the similar name.
 
 ## Tasks
 
-All confirmed live via `get_task_definition` in `manage_unit_tests`.
-
 | Task | Bound to | Parameters | Purpose |
 |---|---|---|---|
-| `task_add_job_to_test_unit_test_single` | `unit_test`, `test_unit_test_overview` | optional `host`, `db_name` (+ `unit_test_id` on the overview variant) | Execute one selected unit test. |
+| `task_add_job_to_test_unit_test_single` | `unit_test`, `test_unit_test_overview` | optional `host`, `db_name` (+ `unit_test_id` on the overview variant) | Execute one selected unit test. Needs a deployed database in the runtime configuration it uses; without one the job and its result end as cancelled. |
 | `task_add_job_to_test_unit_test` | `unit_test`, `test_unit_test_overview` | optional `host`, `db_name` | Execute the whole active suite. |
 | `task_cancel_job` | `test_unit_test`, `test_unit_test_overview` | (key `job_id`) | Cancel a running batch. |
-| `task_show_unit_test_code` | `unit_test` | mandatory `rdbms_type`; optional output `sql` | Preview generated test SQL without running it. |
+| `task_show_unit_test_code` | `unit_test` | mandatory `rdbms_type`; optional output `sql` | Preview generated test SQL without running it. Through the write API it can't be committed; use it in the Software Factory. |
 | `task_enrichment_generate_unit_test` | `unit_test` | mandatory `description`, `unit_test_type_id`, `type_of_object`; optional `tab_id`/`task_id`/`report_id`/`process_flow_id`/`process_action_id`/`subroutine_id`/`control_proc_id` | AI-drafts a test from a natural-language description — a drafting aid for phase 3, review before trusting it covers the approved phase-1 scenario. |
-| `task_copy_unit_test` | `unit_test` | mandatory `from_unit_test_id`, `to_unit_test_id`, `unit_test_type_id`, `type_of_object`; optional target-object fields | Clone a test definition to a new id (definition only, not the mock-data link). **This is also the reliable primary path for *creating* any new `unit_test` row** — see the note on `unit_test.model_id`/`branch_id` above; copy from any existing test regardless of its type and override every field in the same call. Copied input/output rows whose column doesn't exist on the new target are dropped automatically — **except when the source and target tables happen to share a column name for unrelated reasons, in which case that row incorrectly carries over.** Always list the new test's input/output rows after a cross-table copy and delete anything that doesn't belong to the actual scenario. **If the source's `type_of_object` already matches the target (e.g. copying between two `TASK`-type tests), omit it from the patch** — it comes back read-only in that case, and including it fails as not-editable. **A combined patch that includes both `to_unit_test_id` and `unit_test_type_id` can silently clear `to_unit_test_id` as a layout side-effect**, even though it was applied first in the same call — re-read the returned field values after every patch and re-patch anything that reverted before committing. |
+| `task_copy_unit_test` | `unit_test` | mandatory `from_unit_test_id`, `to_unit_test_id`, `unit_test_type_id`, `type_of_object`; optional target-object fields | Clone a test definition to a new id (definition only, not the mock-data link). A new test doesn't need it — see the plain add under `branch` above. Copied input/output rows whose column doesn't exist on the new target are dropped automatically — **except when the source and target tables happen to share a column name for unrelated reasons, in which case that row incorrectly carries over.** Always list the new test's input/output rows after a cross-table copy and delete anything that doesn't belong to the actual scenario. **If the source's `type_of_object` already matches the target (e.g. copying between two `TASK`-type tests), omit it from the patch** — it comes back read-only in that case, and including it fails as not-editable. **A combined patch that includes both `to_unit_test_id` and `unit_test_type_id` can silently clear `to_unit_test_id` as a layout side-effect**, even though it was applied first in the same call — re-read the returned field values after every patch and re-patch anything that reverted before committing. |
 | `task_rename_unit_test` | `unit_test` | mandatory `from_unit_test_id`, `to_unit_test_id` | Rename. |
-| `task_delete_unit_test` | `unit_test` | mandatory `unit_test_id` | Delete. |
+| `task_delete_unit_test` | `unit_test` | mandatory `unit_test_id` | Delete. The test's `transl_object` rows (its description is translatable) stay behind — delete them too (see `thinkwise-sf-translations`). |
 | `task_activate_unit_test` / `task_deactivate_unit_test` | `unit_test` | none | Toggle `active` — prefer deactivate over delete for temporarily-broken tests. |
 | `task_import_unit_test_data_set` | `unit_test_data_set` | mandatory `from_unit_test_id` | Clone an existing data set (with its actual mock rows) onto this test — the only API path to populated mock data. |
 | `task_from_unit_test_data_set_to_data_set_via_unit_test_modeler` | `unit_test_data_set` | none | Opens the Software Factory "Mock data" screen — the manual path to hand-author mock rows. |

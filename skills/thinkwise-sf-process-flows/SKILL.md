@@ -13,12 +13,13 @@ model, which action types are legal starting points, naming rules, control-proce
 loops, layout, and translation — everything needed to build one through an MCP connector without
 guessing.
 
-Follow the connector's standard discovery→act flow; never guess entity/field/enum names — confirm
-them via `get_entity_definition` first. Domain key observed in this environment:
-**`sf/manage_process_flows`** **Calling an external HTTP/REST API is its own skill, not covered end-to-end here**: build the
-connection and endpoint(s) via `thinkwise_sf_web_connections` (a different domain,
-`sf/manage_webconnections`) first, then come back here to add the `web_connection`-type action that
-calls it — see the action-type table below.
+**Domain:** split-domain instances `sf/manage_process_flows`; single-domain `sf/software_development`;
+otherwise find it with `search_domain_capabilities`.
+
+**Calling an external HTTP/REST API is its own skill, not covered end-to-end here**: build the
+connection and endpoint(s) via `thinkwise-sf-web-connections` first (on split-domain instances that is
+a different domain, `sf/manage_webconnections`), then come back here to add the `web_connection`-type
+action that calls it — see the action-type table below.
 
 ## When to use a process flow at all
 
@@ -36,9 +37,9 @@ whichever shape you land on.
 ## Plan first
 
 Before staging anything, outline the flow in plain language and get the user's explicit
-confirmation — the same propose→confirm→build discipline `thinkwise_sf_unit_tests`
-and `thinkwise_sf_build_planner` already use for their own artifacts, and a concrete
-instance of `thinkwise_sf_base`'s "Shared conventions" confirm-before-mutate rule
+confirmation — the same propose→confirm→build discipline `thinkwise-sf-unit-tests`
+and `thinkwise-sf-build-planner` already use for their own artifacts, and a concrete
+instance of `thinkwise-sf-base`'s "Shared conventions" confirm-before-mutate rule
 rather than a separate process invented here. Don't start "Build order" below until this step is
 done.
 
@@ -78,10 +79,10 @@ different trigger — revise the outline and re-confirm rather than patching aro
 
 `process_action`, `process_step`, and `process_flow_schedule` are **weak entities** — stage them with
 `parent_entity_set: "process_flow"` and `parent_key: {model_id, branch_id, process_flow_id}`.
-`process_variable` is added through the entity-set variant `process_variable.process_variable_modeler`
-with parent `process_flow`; a plain add on `process_variable` asks for an unrelated parent and fails.
-Adding `process_flow` under `branch` offers two detail navigations (process flow and sub flow) —
-pick the plain process-flow one.
+`process_variable`'s add route depends on the domain layout — see "Creating `process_variable`" in
+`references/flow_building_blocks.md`.
+Adding `process_flow` under `branch` offers two detail navigations — `detail_ref_branch_process_flow`
+for an ordinary flow, `detail_ref_branch_process_flow_sub_flow` for a sub-flow.
 `process_action_start_object_available` **cannot be written through this API at all**, but this
 doesn't block anything in practice — see "Starting points" below for why.
 
@@ -93,8 +94,11 @@ doesn't block anything in practice — see "Starting points" below for why.
 Actions must exist before steps can reference them; everything else has no hard ordering beyond its
 own parent.
 
-1. `process_flow` (the flow shell)
-2. `process_action` rows (every node, including `start` and `stop` — if the flow should be launchable
+1. `process_flow` (the flow shell) — committing it makes the Software Factory create the `start`
+   (type 98, x 5) and `stop` (type 99, x 100) actions immediately (verified through the write API on
+   SF 2026.2). Don't add them yourself and don't run `task_add_start_stop_process_action`; re-query
+   `process_action` and use the ids it created.
+2. `process_action` rows (every node other than `start`/`stop` — if the flow should be launchable
    by a task/table/report, include that as its own eligible-type action wired directly to `start`,
    not as something wired up separately afterward — see "Starting points" below)
 3. `process_step` rows (the connectors between the actions from step 2)
@@ -113,7 +117,7 @@ Two rules that bite:
   action for the object that launches the flow must be *in* the flow, not assumed.
 - **Every path must end at `stop`** — a dangling branch fails validation.
 
-Flow and action ids share a namespace with `task`/`report` ids; query those before naming.
+Process flow ids share one namespace with `tab`/`task`/`report` ids; query those before naming.
 
 For the per-entity creation reference (fields, keys, the action/step wiring and the decision/branch
 shapes), read `references/flow_building_blocks.md`.
@@ -143,7 +147,7 @@ legal inside a **system flow** differs from a normal process flow.
 
 Check `references/action_types.md` for the full catalogue, the sys/ui legend, and which types can
 serve as a starting point, **before assuming a type's exact name**. For the `show_msg` action's
-message wiring specifically, see `thinkwise_sf_messages`.
+message wiring specifically, see `thinkwise-sf-messages`.
 
 ## Branching, parallelism, and loops
 
@@ -160,10 +164,13 @@ lets execution continue.
 Example — paging through an HTTP API until there's no more data: variables `page_number` (int,
 default `1`), `has_more_pages` (bool), `iteration_count` (int, default `0`); a `web_connection` action
 `get_page` (endpoint path/query string uses `{page_number}` — see
-`thinkwise_sf_web_connections`); an `execute_task` action
+`thinkwise-sf-web-connections`); an `execute_task` action
 `store_page_results` that saves the page and increments both `page_number` and `iteration_count`
-(via its control procedure); a `decision` action `check_more_pages` whose `successful` step loops back
-to `get_page` when `has_more_pages=true`, and whose `not_successful` step continues to `stop`.
+(via its control procedure); a `decision` action `check_more_pages` with one outgoing step back to
+`get_page` and one to `stop` (both `always` — a decision routes through its process procedure, not
+step conditions). Its procedure sets the `stop`-bound step's switch to `0` while `has_more_pages=true`
+(and the cap isn't reached), and the `get_page`-bound step's switch to `0` otherwise — see "Decision as
+a code-only step" in `references/flow_building_blocks.md`.
 
 > **Warning:** nothing in the model stops a loop from running forever — there's no built-in
 > step-count fuse, and "one flow instance per user" is no protection for a system flow: a scheduled
@@ -179,7 +186,7 @@ to `get_page` when `has_more_pages=true`, and whose `not_successful` step contin
 **The exit condition and the iteration cap are business decisions, not implementation defaults** —
 if the user hasn't said what business condition should end the loop or what `max_iterations`
 ceiling is safe, ask rather than picking a number unilaterally, per
-`thinkwise_sf_base`'s "Shared conventions" ask-don't-default rule. The "prove the
+`thinkwise-sf-base`'s "Shared conventions" ask-don't-default rule. The "prove the
 exit condition with a small cap" technique above is a testing step for validating a cap/condition
 the user has already settled on — it doesn't substitute for asking what that cap/condition should
 be in the first place.
@@ -198,50 +205,58 @@ mistake:
 
 1. **The action's own `use_processes` flag** ("Use process procedure") opts that specific
    `process_action` into the `PROCESSES` code group — a control procedure assigned here runs as part
-   of the action itself (see "Decision as a code-only step" in `references/flow_building_blocks.md` for the most common use of this).
+   of the action itself, through the program object `prc_<process_flow_id>_<process_action_id>` (see
+   "Decision as a code-only step" in `references/flow_building_blocks.md` for the most common use of
+   this, the procedure's parameters, and how to read the assembled code).
 2. **The far more common pattern**: an `execute_task`/`execute_system_task` action simply calls a task
    whose own logic type is **Stored procedure**, and the *task's* control procedure (in the `TASKS`
    code group) is where the real work happens — parsing a connector's response, writing rows, etc.
 
 Either way, creating and assigning that control procedure follows the full lifecycle documented in
-`thinkwise_sf_control_procedures` — load that skill before writing the actual
+`thinkwise-sf-control-procedures` — load that skill before writing the actual
 SQL: check `branch_rdbms_type` first, scaffold with **Generate code group** before hand-guessing the
 business-logic variables available to a `PROCESSES`/`TASKS` code-group procedure, then assign and
 verify by reading the generated code, not just trusting a "successful" status.
 
 ## Alignment, naming, and translation
 
-Flow and action ids must not collide with existing `task`/`report` ids — query those first. Canvas
-`x`/`y` coordinates only affect readability, never behaviour. The flow's own description, its
-actions' descriptions and any message text are translatable objects; see
-`thinkwise_sf_translations`.
+Flow ids must not collide with existing `tab`/`task`/`report` ids — query those first; validation
+flags a clash as `val_process_flow_name_not_unique`. Canvas `x`/`y` coordinates only affect
+readability, never behaviour. The flow's own description, its actions' descriptions and any message
+text are translatable objects; see `thinkwise-sf-translations`. Not every action type gets its own
+translation object, and deleting a flow leaves orphaned translation objects behind (see the reference
+below).
 
 For the full naming convention table and the canvas-alignment guidance, read
 `references/naming_and_layout.md`.
 
 ## Pre-flight checklist
 
-- Query existing `task`/`report` ids in the target model before picking a `process_flow_id` — no
-  collision is enforced automatically.
+- Query existing `tab`/`task`/`report` ids in the target model before picking a `process_flow_id` —
+  the write API accepts a collision; only validation (`val_process_flow_name_not_unique`) flags it.
 - Look at sibling process flows already in the model and match their naming convention before
   introducing a new one.
 - Create `process_action` rows before any `process_step` that references them.
 - Set a fresh `process_action`'s fields in **one** combined call, ordered so `process_action_type` and
   `tab_id`/`task_id` come before `process_action_id`, this lands every field correctly in
-  a single round trip. Re-read the returned `fields` block on that call before moving on.
+  a single round trip. Setting type + target on an add makes the Software Factory rewrite
+  `process_action_id` to `<type>_<target>` (e.g. `zz_exec` → `execute_task_zz_probe_task`), so send
+  your own id last and read the id back from the returned `fields` block before moving on.
+- Send your own `process_step_id` on every step (conventionally `<from_action>_<to_action>`) — it is
+  not generated; it stays null and mandatory after the last/next actions are set.
+- Don't add `start`/`stop` — they exist as soon as the `process_flow` is committed.
 - Don't try to patch `is_system_flow` or `process_flow_platform` directly — both are
   computed/read-only.
 - **A flow's trigger object (task/table/report) must be its own eligible-type `process_action` wired
   directly to `start`** — not left outside the flow. `process_action_start_object_available` can't be
   written via this API, but that's fine: it's a structural reflection of the action chain, not a
   separate switch, so no manual step in the Software Factory's own UI is needed once the trigger action
+  is in the flow.
 - Check every branch (including loops and error paths) actually reaches a `stop` action.
 - A `duplicate_key`-style error on commit is **not a reliable signal either way** — it has been
   observed both as a false negative (the row had actually persisted) and as a real failure. Re-query
-  the row after any duplicate-key error before trusting either outcome. **Confirmed cause of one such
-  false negative**: adding the very first `process_action` (any type, not just `start`) to a
-  brand-new, empty flow can silently auto-bootstrap a paired `start`+`stop` action set as a
-  side effect — mirroring what the flow's own bound `task_add_start_stop_process_action` does —
-  before your own insert commits, producing a spurious duplicate-key error even though both markers
-  now exist correctly. Re-query `process_action` for the flow before adding `start`/`stop` yourself.
+  the row after any duplicate-key error before trusting either outcome. A common cause: trying to add
+  `start`/`stop` yourself, when the Software Factory already created both on the `process_flow`
+  commit (verified on SF 2026.2; older sessions saw them appear on the first action add instead).
+  Re-query `process_action` for the flow rather than adding them.
 

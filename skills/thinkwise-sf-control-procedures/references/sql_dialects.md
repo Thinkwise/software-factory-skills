@@ -67,3 +67,16 @@ query, not a stored generated column) — `concat` is fine there. Only a `calcul
 Don't assume a function "looks pure" ⇒ `IMMUTABLE` — check PostgreSQL's own volatility
 classification (`\df+ <funcname>` or the docs) before using it inside a generated column or a
 functional index, the two contexts where this actually matters.
+
+## PostgreSQL functions — the template is only the body
+
+Verified live: for a subroutine of type Function on PostgreSQL, the Software Factory writes the
+header, the parameters, `returns`, `language plpgsql`, `stable` and `begin`/`end`; the template holds
+only the body.
+- **Scalar function** — `return_value = 1`, with `return_scalar_dom_id` (mandatory). The body ends
+  with `return <expr>;`.
+- **Table-valued function** — `return_value = 2`, with one `subroutine_return_col` row per returned
+  column, in order (not `return_table_id`). The body is `return query select …;` with every column
+  qualified by its table alias: the returned columns are variables inside the function too, so an
+  unqualified name is ambiguous.
+- Parameters are `p_<parmtr_id>`; `output_parmtr = true` makes the parameter `INOUT`.

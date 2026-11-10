@@ -10,18 +10,18 @@ parameter, a menu, a validation message, and roughly 150 other concepts — gets
 `transl_object` row, keyed by `(model_id, branch_id, type_of_object, transl_object_id)`. Each
 `transl_object` then has one `transl_object_transl` child row **per configured application
 language**, keyed by the same four fields plus `appl_lang_id`, holding the actual translated text.
-Everything in this skill was confirmed live against a real connected model (`INSIGHTS`, branch
-`MAIN`) via `sf_mcp`.
 
 Apply this whenever an MCP connector with Software Factory access is used to read, write, generate,
-or review translations. `transl_object`, `transl_object_transl`, and `branch_appl_lang` live in a
-`manage_translation`-style domain (confirmed `sf/manage_translation` live); the master `appl_lang`
-list (the global catalogue of IETF language tags, independent of any model) lives in a
-`manage_datamodel`-style domain instead ## Golden rule — several moves here need the user's word, not the assistant's judgment
+or review translations. Domain: split-domain instances `sf/manage_translation` for `transl_object`,
+`transl_object_transl` and `branch_appl_lang` (the model-independent `appl_lang` catalogue of IETF
+language tags sits in `sf/manage_datamodel`); single-domain `sf/software_development`; otherwise find
+it with `search_domain_capabilities`.
+
+## Golden rule — several moves here need the user's word, not the assistant's judgment
 
 The mechanics of reading and writing translation rows are simple API calls. A handful of moments in
 that flow are design or process decisions that belong to the user, not something to resolve
-silently by picking whatever seems safest — the `thinkwise_sf_base`
+silently by picking whatever seems safest — the `thinkwise-sf-base`
 "Confirm-before-mutate" convention applied at this skill's own grain:
 
 - **Hand-creating a `transl_object`.** The platform generates these automatically in almost every
@@ -115,7 +115,7 @@ directly off a query result.
 | `transl` | string | General-purpose single label; the fallback used wherever no more specific field is set. |
 | `transl_form` | string | Form labels, formlists, task/report parameter pop-ups. |
 | `transl_grid` | string | Grid column headers. |
-| `transl_card_list` | string | Card list headers (undocumented in the platform docs pulled for this skill, but a real, distinct field — confirm intent with the user before assuming it always mirrors `transl`). For what `card_list_label`/`card_list_order_no`/etc. actually control on the card itself, see `thinkwise_sf_subject_components`. |
+| `transl_card_list` | string | Card list headers (undocumented in the platform docs pulled for this skill, but a real, distinct field — confirm intent with the user before assuming it always mirrors `transl`). For what `card_list_label`/`card_list_order_no`/etc. actually control on the card itself, see `thinkwise-sf-subject-components`. |
 | `transl_plural` | string | List/detail tab headers, card list headers — see Plural forms below. |
 | `tooltip_text` | string | Hover hint; basic HTML allowed. |
 | `help_text` | string | Longer-form, feeds Help screens — see Help text below. |
@@ -141,8 +141,8 @@ AI" for this one row — drafts from an already-translated language), `task_gene
 `task_transl_selected_objects` ("translate by ID" — derives a label from the object ID: underscores
 to spaces, first letter capitalized), `task_unlink_generated_object`.
 
-— table `activity` in model `INSIGHTS`, branch `MAIN` — surfaced three points made
-elsewhere in this skill at once:
+One real table (`activity`, model `INSIGHTS`) shows three points made elsewhere in this skill at
+once:
 
 - **Eight configured languages**, not the shipped six — including a regional variant (`pt-BR`, not
   plain `pt`) and a non-Latin script (`ja-JP`).
@@ -191,11 +191,24 @@ business term), and leave `approval_status`/help text empty by default rather th
 For the naming conventions in full, per-language plural forms (authored, never derived), and the
 help-text review workflow, read `references/naming_and_text.md`.
 
+## Deleting an object — delete its translation objects too
+
+Deleting a model object (table, column, task, message, cube, prefilter, report, process flow, …) or
+renaming it never removes its `transl_object` rows; they stay behind as orphans. After the delete,
+delete each orphaned `transl_object` row by its key `(model_id, branch_id, type_of_object,
+transl_object_id)` — with `delete_record` on an Indicium MCP connector — and re-query
+`transl_object_transl` for that key to confirm its language rows went with it. Find the rows with
+the bare-id query from "Before anything else" (step 3); a child object (a task parameter, a process
+action, a message option) has rows of its own. Skip an id another live object still uses — a column
+id or an element id is shared by every object with that id. For a branch-wide sweep instead, run
+`task_delete_unused_transl_objects` (see `references/language_administration.md`).
+
 ## Multiple languages
 
 A branch's configured languages live in `branch_appl_lang`; every `transl_object` needs one
 `transl_object_transl` row **per configured language**, so adding a language multiplies the rows that
-need text.
+need text. Write each row in its own `appl_lang_id`'s language — never a source-language caption in
+another language's row.
 
 **Don't hand-translate an officially supported GUI language.** Thinkwise ships pre-translated base
 models that can be linked and merged to back-fill the platform's own standard translations, leaving
@@ -237,7 +250,10 @@ task, and sweeping for orphaned translation objects), read `references/language_
 - **A `cube_field`'s label (25) is independent of its `col_id` column's own translation (1)** —
   translating one does nothing for the other, and multiple `cube_field` rows sharing one `col_id`
   each need their own translation. `cube_view` is `type_of_object = 26`.
-- **A rename task cascades functional references but not translations** — after renaming a
-  translatable object through its dedicated rename task, check for and delete the old id's orphaned
-  `transl_object`/`transl_object_transl` rows rather than assuming the rename handled them.
+- **After renaming or deleting a translatable object, delete its orphaned translation objects** —
+  see "Deleting an object" above.
+- **Table variants (281) and group/tab labels (33) get their `transl_object` only at definition
+  generation** (reported on SF 2026.2) — generate, run `task_generate_transl_objects`, then fill the
+  placeholders. Some objects (`tile`, `tab_report`, `indx`, `subroutine`, `tab_task_parmtr`) get no
+  translation object at all — see `references/type_of_object_lookup.md`.
 

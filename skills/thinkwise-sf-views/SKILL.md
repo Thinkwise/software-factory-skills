@@ -1,6 +1,6 @@
 ---
 name: thinkwise-sf-views
-description: Reference guide for creating views in a Thinkwise Software Factory data model — naming, entity/column setup, domain reuse, modeling references to the view's source tables, and writing/assigning the SELECT code that backs a view. Use whenever creating, reviewing, or troubleshooting a view via an MCP connector with Software Factory access (e.g. sf_mcp, indicium), especially when converting a user's ad hoc SQL query into a view. Does not cover deployment.
+description: Reference guide for creating views in a Thinkwise Software Factory data model — naming, entity/column setup, domain reuse, modeling references to the view's source tables, and writing/assigning the SELECT code that backs a view. Use whenever creating, reviewing, or troubleshooting a view via an MCP connector with Software Factory access, especially when converting a user's ad hoc SQL query into a view. Does not cover deployment.
 ---
 
 # Creating Views in the Thinkwise Software Factory
@@ -9,13 +9,13 @@ Reference for the view lifecycle covered by this skill: `tab` (type `view`) → 
 → control procedure → template → `template_prog_object_item` → generated `CREATE VIEW` program
 object, generated and verified. Deployment (pushing the generated code to an actual database) is a
 separate concern this skill does not cover.
-Apply this whenever an MCP connector with Software Factory access (`sf_mcp`, `indicium`) is used to
-create, inspect, or convert a query into a view `tab`/`col` typically live in a `data_modeling`-style domain;
-`control_proc`/`control_proc_template`/`template_prog_object_item` typically live in a
-`manage_model`-style domain For
-the general control-procedure/template/assignment mechanics referenced throughout (code groups,
+Apply this whenever an MCP connector with Software Factory access is used to create, inspect, or
+convert a query into a view. Domain: split-domain instances keep `tab`/`col` in a data-model domain
+(e.g. `sf/manage_datamodel`) and `control_proc`/`control_proc_template`/`template_prog_object_item`
+in a control-procedure domain; single-domain `sf/software_development`; otherwise find them with
+`search_domain_capabilities`. For the general control-procedure/template/assignment mechanics referenced throughout (code groups,
 `[PARMTR]` substitution, static vs. SQL assignment, dialect differences), see the
-`thinkwise_sf_control_procedures` skill — this skill only covers what's specific
+`thinkwise-sf-control-procedures` skill — this skill only covers what's specific
 to views.
 
 ## What a view is
@@ -63,14 +63,15 @@ abbreviations, no meta-information baked into the name. View-specific points:
   is picked.
 - **Name the control procedure and template after the view** so the code producing a view's data is
   trivially discoverable from the view's name. A bare match (`control_proc_id == tab_id`) is
-  simplest and needs no explaining — pick one convention (bare match, or a fixed prefix like `Vw_`)
+  simplest and needs no explaining — the one deliberate exception to the general rule that a control
+  procedure id is never just a table name — pick one convention (bare match, or a fixed prefix like `Vw_`)
   and hold to it across the model; don't mix both.
 
 ## Confirm scope before modeling
 
 Before creating the `tab` row, state the plan back to the user and get their confirmation — this
 applies to every view being designed, not only an ad hoc-query conversion (see below). This is the
-`thinkwise_sf_base` "Confirm-before-mutate" convention applied at this skill's own
+`thinkwise-sf-base` "Confirm-before-mutate" convention applied at this skill's own
 grain; it isn't superseded by anything below about the view's own setup mechanics:
 
 - **Source tables/columns** the view pulls from.
@@ -88,9 +89,17 @@ it with the user rather than defaulting to a view.
 
 1. **Data model → Tables → New table.** Set `type_of_table = view`, pick `create_view_method`
    (default `template`).
-2. **Model the columns before writing any code.** For Template views, the control procedure's
+2. **Model the columns before writing any code.** The first column added to a view automatically gets
+   `primary_key = true` and a read-only `mand = true`; every later column needs an explicit
+   `primary_key = false`. `type_of_col`/`grid_type_of_col`/`form_type_of_col` are numeric:
+   `editable` 0, `read_only` 1, `hidden` 3. For Template views, the control procedure's
    `SELECT` list must match the view's modeled column list, in the same order — model columns first,
-   then write `SELECT` to match, not the other way around.
+   then write `SELECT` to match, not the other way around. Verified live on both platforms: the
+   Software Factory generates `create view <tab> (<columns in order_no order, without calculated
+   columns>) as <template>`, so the mapping is **positional**, not by alias. A swapped order silently
+   swaps the data between columns; a wrong column count fails at deploy. Never use `select *`, and
+   edit the template in the same change whenever a column is added to the view. A calculated column
+   on a view is modeled as on a table and left out of the `SELECT`.
    - **Column order**: same 10-per-step convention as regular tables (`col.order_no` 10, 20, 30, …),
      leaving gaps for later insertions.
    - **Primary key**: pick the column(s) that define the view's actual **grain** (the level of
@@ -120,7 +129,7 @@ it with the user rather than defaulting to a view.
    step on a Template view and the column silently has no look-up, no detail grid, and no
    auto-derived OData/Indicium navigation, even though the generated `SELECT` still returns the right
    data.
-   - See the `thinkwise_sf_data_model` skill's "References (foreign keys)" section for the
+   - See the `thinkwise-sf-data-model` skill's "References (foreign keys)" section for the
      full look-up-vs-detail explanation. The one point specific to views, repeated here because it's
      easy to get backwards: **the direction is the same as any table-to-table FK.** For a view
      column pointing at a real table's primary key, `source_tab_id` = the real table (the PK-owner),
@@ -136,13 +145,14 @@ it with the user rather than defaulting to a view.
      `check_ref = false` because a view carries no physical FK constraint; `show_detail = false`
      because a detail grid on the real table listing view rows is rarely useful. If two or more view
      columns point at the same target table, set `ref_add` on each (e.g. `"most_recent"` /
-     `"upcoming"`) so their auto-derived `ref_id`s don't collide.
+     `"upcoming"`) so their auto-derived `ref_id`s don't collide. The `ref_id` is derived from the two
+     table ids (plus `ref_add`) and read-only, so it can't carry a custom prefix.
 4. Write and assign the actual query (below).
 5. Regenerate and verify the generated code (below).
 
 **The new view and its columns need translating, same as any table.** `tab`/`col` created here get
 the platform's usual bracket-placeholder translation until filled in — see
-`thinkwise_sf_translations` for the detection query and field reference. Do
+`thinkwise-sf-translations` for the detection query and field reference. Do
 this after the column list is finalized (step 2) so it isn't repeated every time a column gets
 renamed while the view is still being modeled.
 
@@ -181,7 +191,7 @@ column was" just renders a broken-looking input.
 - **Set a view column to `editable` only when one of these holds:**
   - a user edits it directly *and* the view has an update handler / `instead of`-style
     handler (or process logic) that persists the edit to the real table(s) — see
-    `thinkwise_sf_control_procedures`'s Handler guidance and
+    `thinkwise-sf-control-procedures`'s Handler guidance and
     `references/subject_presentation_design.md`'s "Tables vs. views";
   - the view's own handler writes the column while reacting to another edit on the row (a
     derived value it recalculates and pushes back).
@@ -199,7 +209,7 @@ column was" just renders a broken-looking input.
 - **Apply the decision on all three fields** — `col.type_of_col`, `grid_type_of_col`, and
   `form_type_of_col`. A view's read-only intent holds on every surface, so unlike the table
   default (where the form stays editable regardless of the grid) these move together. Set
-  them in the same `stage_resource` call that creates the column, alongside order / PK /
+  them in the same write that creates the column, alongside order / PK /
   domain — don't leave them at the `editable` default and patch later.
 
 - **Mandatory (`mand`) is only meaningful on an editable view column.** `mand = true` on a
@@ -208,15 +218,17 @@ column was" just renders a broken-looking input.
   to `mand = false`; set `mand = true` only where the column is `editable` **and** the
   handler genuinely needs a value. After assigning a domain whose own default is mandatory,
   re-read the column and force `mand = false` if it reverted — see the domain-default revert
-  quirk in `thinkwise_sf_data_model`'s "Domains" section.
+  quirk in `thinkwise-sf-data-model`'s "Domains" section. **Exception: primary-key columns** —
+  the Software Factory forces `mand = true` on them; leave it.
 
 ## Writing and assigning the view's SELECT
 
 A view's body is a control-procedure template in the `VIEWS` code group, assigned to the view's
 `prog_object` and then generated — the same two-task generation sequence as any other control
-procedure (`thinkwise_sf_control_procedures`).
+procedure (`thinkwise-sf-control-procedures`).
 
-The column list the SELECT returns must match the view's modeled columns exactly, in order.
+The column list the SELECT returns must match the view's modeled columns exactly, in order
+(calculated columns excluded) — the mapping is positional, so aliases don't rescue a wrong order.
 
 For the step-by-step (creating the control procedure and template, assigning it, generating, and
 verifying the generated SQL), read `references/view_code_assignment.md`.
@@ -242,9 +254,9 @@ result against the original query).
 - **Keep the body pushdown-safe.** Grid filters, prefilters, key lookups, and cube drill-downs all
   filter *outside* the view. `distinct`, `union`, window functions, filters on aggregates, and
   outer-join-side filters can force the whole view to be built first. See
-  `thinkwise_sf_control_procedures`' `references/sql_style_guide.md`, "Write pushdown-safe queries".
+  `thinkwise-sf-control-procedures`' `references/sql_style_guide.md`, "Write pushdown-safe queries".
 - **Index the base-table columns users filter or sort on through the view** (see
-  `thinkwise_sf_data_model`'s "When to add a (non-unique) index").
+  `thinkwise-sf-data-model`'s "When to add a (non-unique) index").
 - **Remove heavy views from reference filtering** when it isn't essential. Filtering a heavy view
   costs far more than filtering its underlying table.
 - **Don't use a query-driven lookup as a grid presentation field** on a large view.
@@ -262,15 +274,16 @@ result against the original query).
 - Reuse the source column's exact `dom_id` for every view column that isn't a genuinely new derived
   concept.
 - Default every view column to not editable (`type_of_col`/`grid_type_of_col`/`form_type_of_col`
-  = `read_only`, `hidden` for keys/plumbing) and `mand = false`; make a column `editable` (and
+  = `read_only`, `hidden` for keys/plumbing) and `mand = false` (PK columns are forced to
+  `mand = true`); make a column `editable` (and
   `mand` where required) only where a user or the view's update handler genuinely writes it —
   the opposite of the table default.
 - Verify the chosen primary key is actually unique per row against real data — a view enforces
   nothing on its own.
 - Model a `ref`/`ref_col` for every FK-shaped column before writing the template — never leave it as
-  "just a column with matching values." Remember the direction reversal for views: `source_tab_id` =
-  the real table, `target_tab_id` = the view (opposite of a normal table-to-table FK). Getting this
-  backwards renders as a detail grid on the view instead of the look-up you want.
+  "just a column with matching values." Same direction as any table-to-table FK: `source_tab_id` =
+  the real table (PK-owner), `target_tab_id` = the view. Getting this backwards renders as a detail
+  grid on the view instead of the look-up you want.
 - New view not showing up to attach code to? Run **Generate code group** (`task_generate_code_grp`,
   bound to `control_proc`) for `VIEWS` first — but that only creates the placeholder `prog_object`,
   it doesn't produce code by itself.

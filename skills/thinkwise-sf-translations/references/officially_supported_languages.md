@@ -7,10 +7,6 @@ work model backfills the platform's own standard translations for free. Manual t
 the rest of this skill, is then only needed for the application's **own** objects (its tables,
 columns, custom tasks, custom messages) — never for anything the platform itself ships.
 
-Confirmed live end-to-end against `meta_dev`/`sf/software_development`, including a full
-link → generate → verify → unlink → regenerate → verify cycle on a real work model — not assumed
-from documentation, and not just inferred from metadata.
-
 ## The base-model catalogue
 
 `model` carries three flags: `base_model`, `default_base_model`, `thinkwise_base_model`. Querying

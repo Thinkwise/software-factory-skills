@@ -1,18 +1,22 @@
 # Known API/tooling quirks specific to a PostgreSQL migration
 
 Each entry: symptom, root cause, and what actually worked (or the honest state if unresolved).
-Complements the general write-hazard list in `thinkwise_sf_base` — these are
+Complements the general write-hazard list in `thinkwise-sf-base` — these are
 specific to enabling and porting to PostgreSQL, not general MCP-connector behavior.
 
-## `branch_rdbms_type` is read-only through the API
+## `branch_rdbms_type` is not directly writable — enabling a platform goes through a task
 
-**Symptom**: no `stage_resource`/`stage_task` path adds a row to `branch_rdbms_type`; the entity
-reports `allow_add/update/delete = false` and has no bound tasks. Searching for an "enable platform"
-task (tried `unlink_generated_object.platform` and similar) turns up nothing usable.
+**Symptom**: `branch_rdbms_type` reports `allow_add/update/delete = false`, so a direct add of a
+PostgreSQL row is refused.
 
-**Resolution**: this is a genuine gap, not a discovery failure — enabling a platform is a Project
-Settings action in the Software Factory's own UI. Tell the user directly and wait for confirmation
-before proceeding; don't keep searching for an API path that doesn't exist.
+**Resolution**: the entity carries bound tasks — `task_link_branch_rdbms_type` /
+`task_unlink_branch_rdbms_type` (`model_id`, `branch_id`, `rdbms_type`) and `task_mass_conv_code`
+(AI conversion of the branch's code from `source_rdbms_type` to `target_rdbms_type`, with a
+`template_prefix` and one `conv_*` flag per logic concept). Stage the link task on an
+existing `branch_rdbms_type` row of the branch (e.g. `rdbms_type` 0) and pass the new platform as the
+`rdbms_type` parameter — staging it on the PostgreSQL key that doesn't exist yet gives 404. Committing
+it is unverified: try it once; if it is refused, enabling a platform is a Project settings action in the
+Software Factory's own UI — tell the user and wait for confirmation before proceeding.
 
 ## Prefilter/domain/column query fields gained an `rdbms_type` dimension in 2026.2 — older guidance is stale
 
@@ -26,7 +30,7 @@ fields are/aren't platform-split without checking `get_entity_definition` live f
 `process_variable_query`, `report_parmtr_query`, `task_parmtr_query`, `subroutine_parmtr_query`,
 `data_set_query`, `tab_query`, `unit_test_query`, `tab_data_col_query`, `dom_input_constraint_query`)
 is actively growing across platform versions — see
-`thinkwise_sf_control_procedures`'s `references/calculated_columns_query_split.md`
+`thinkwise-sf-control-procedures`'s `references/calculated_columns_query_split.md`
 for the general detection technique.
 
 ## `execute_odata_query` truncates long text fields with no working chunked-read path
@@ -48,23 +52,19 @@ directly in the Software Factory's UI (copy/paste + find-replace for the known m
 substitutions is enough for seed data specifically, since the content is repetitive `insert` blocks,
 not novel logic).
 
-## A brand-new (never-generated) standalone subroutine has no way to get its placeholder created via API
+## A brand-new (never-generated) standalone subroutine has no placeholder yet
 
 **Symptom**: `template_prog_object_item`/`prog_object_item` queries for the subroutine return nothing
-on *any* platform (not just PostgreSQL) even though the `control_proc`/`control_proc_template` rows
-with real T-SQL exist and look complete. Running `task_generate_code_grp` bound to the subroutine's own
-control procedure completes without error but creates no `prog_object_item` row. Running it again bound
-to the framework's own group-level control procedure (the same recipe that reliably works for views,
-handlers, tasks, and triggers) *also* completes without error and *still* creates nothing.
+on *any* platform although the `control_proc`/`control_proc_template` rows exist and look complete.
 
-**Resolution**: this is a real, confirmed gap specific to this one code-type shape — not a matter of
-finding the right call. Write and save the PostgreSQL `control_proc_template` anyway (that part of the
-API works completely normally — `allow_add`/`allow_update` are both `true` on `control_proc_template`
-regardless of this gap), then tell the user this specific subroutine needs one manual "Generate" pass
-in the Software Factory's UI before the new template can take effect. Anything else that `call`s this
-subroutine (a Handler, a Task) will generate and look correct, but will fail at actual database deploy
-time until the manual step happens — flag this dependency explicitly, don't let it look like the
-migration silently succeeded.
+**Resolution**: run `task_generate_code_grp` bound to the subroutine's own control procedure. It
+creates the `func_`/`proc_` placeholder when the `subroutine` and `subroutine_parmtr` rows were created
+before the control procedure (see `thinkwise-sf-subroutines` → `references/creating_a_subroutine.md`).
+If the generate completes but still creates nothing, check that order first. Only then fall back:
+write and save the PostgreSQL `control_proc_template` anyway (`allow_add`/`allow_update` are `true` on
+it) and tell the user this subroutine needs one manual "Generate" pass in the Software Factory. Anything
+that `call`s it (a Handler, a Task) generates fine but fails at database deploy until that happens —
+flag the dependency, don't let it look like the migration silently succeeded.
 
 ## `task_generate_code_grp` has broader side effects than documented
 

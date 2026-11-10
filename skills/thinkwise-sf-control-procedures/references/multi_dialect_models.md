@@ -1,6 +1,6 @@
 # Working on a multi-dialect (multi-RDBMS) model
 
-Loaded on demand from `thinkwise_sf_control_procedures`.
+Loaded on demand from `thinkwise-sf-control-procedures`.
 
 ### More than one row returned → the shape of the work changes, not just the SQL text
 1. **One dialect-specific `control_proc_template` per platform.** `control_proc_template`'s key

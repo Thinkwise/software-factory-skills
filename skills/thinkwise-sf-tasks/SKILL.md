@@ -12,27 +12,26 @@ bound to one via `tab_task`; until then it's an **unbound** task, reachable only
 a process flow, or the API.
 
 Apply this whenever an MCP connector with Software Factory access is used to create, assign, or
-inspect a task. Domain: `sf/manage_tasks`.
+inspect a task. Domain: split-domain instances `sf/manage_tasks`; single-domain
+`sf/software_development`; otherwise find it with `search_domain_capabilities`.
 
 **Companion skills, not duplicated here**: the actual control-procedure/template mechanics behind
 a task's generated code (code groups, business-logic variables, static vs. SQL assignment, the
 two-step "generate code group then generate object code" sequence, multi-RDBMS dialects) live in
-`thinkwise_sf_control_procedures` — read it before writing a task's template.
+`thinkwise-sf-control-procedures` — read it before writing a task's template.
 Full translation mechanics (`transl_object`/`transl_object_transl`, `type_of_object`, approval
-workflow) live in `thinkwise_sf_translations`. This skill covers what's
+workflow) live in `thinkwise-sf-translations`. This skill covers what's
 specific to tasks; both companions cover the shared machinery in depth.
 
-**Gotcha**: `tab_task`, `task_parmtr`, `tab_task_grp`, and `tab_task_parmtr` are also
-reachable as entity sets under a `manage_datamodel`-style domain — but the master `task`,
-`task_variant`, and `task_ref`/`task_ref_col` entities were **not** found there
-(`entity_set_not_found`) and only resolved under `sf/manage_tasks`. Don't assume every task-adjacent
-entity lives in the same domain as the rest of the data model — confirm each one via
-`search_domain_capabilities`/`get_available_domains` rather than guessing from where a sibling entity
-happened to resolve.
+**(Indicium · split-domain)** `tab_task`, `task_parmtr`, `tab_task_grp`, and `tab_task_parmtr` are
+also reachable in `sf/manage_datamodel`, but the master `task`, `task_variant`, and
+`task_ref`/`task_ref_col` entities only resolve in `sf/manage_tasks` (`entity_set_not_found`
+elsewhere). Don't assume a task-adjacent entity lives where a sibling entity resolved — confirm each
+one with `search_domain_capabilities`.
 
 ## Plan first
 
-This is the task-grain application of `thinkwise_sf_base`'s "Confirm-before-mutate"
+This is the task-grain application of `thinkwise-sf-base`'s "Confirm-before-mutate"
 convention (see its Shared conventions section) — don't restate that rule, apply it. Before the first
 `stage_resource`/`stage_task` call for a new or changed task, state the plan and get it confirmed. For
 a task, "the plan" means naming:
@@ -46,7 +45,7 @@ a task, "the plan" means naming:
 
 This generalizes the `task_conditional_layout`-specific confirmation rule further down (never add one
 without checking first) to the whole task, not just its conditional layout. If the task is part of a
-larger build (e.g. from `thinkwise_sf_build_planner`), fold this into that plan instead
+larger build (e.g. from `thinkwise-sf-build-planner`), fold this into that plan instead
 of confirming it separately once the task is already being staged.
 
 ## Golden rule — creation order is enforced, not just conventional
@@ -54,9 +53,9 @@ of confirming it separately once the task is already being staged.
 A brand-new task's pieces have to be created in this order; the API rejects several of the
 shortcuts:
 
-1. **The `task` row first** — a plain `stage_resource`(add)/`patch_resource`/`commit_resource`
-   against `task`, keyed only by `task_id`. There is no dedicated "create task" bound task; it's an
-   ordinary entity add, the same as creating a `tab` or `col`. Nothing else below can exist before
+1. **The `task` row first** — an ordinary `stage_resource`(add)/`patch_resource`/`commit_resource`
+   on `task`, keyed by `task_id`, staged **under its `branch`** (`parent_entity_set` `branch`); a bare
+   add is refused. There is no dedicated "create task" bound task — the same as creating a `tab`. Nothing else below can exist before
    this row does.
 2. **Bind it to a table via `tab_task`, if it's a table task** — keyed by `(tab_id, task_id)`.
    Setting `tab_task.task_id` to a `task_id` that doesn't exist yet is rejected outright, even
@@ -67,7 +66,7 @@ shortcuts:
    fall back to a plain add with the full key supplied as explicit fields.
 4. Only once all three exist does the control-procedure flow apply: **Generate code group** to
    materialize the `task_<task_id>` placeholder, then write/assign a template, then generate the
-   actual code. See `thinkwise_sf_control_procedures` for that sequence in
+   actual code. See `thinkwise-sf-control-procedures` for that sequence in
    full — it applies to a task's own logic exactly as it does to a table's.
 
 **A table task does not receive that table's primary key for free.** Unlike a Handler, which gets
@@ -90,7 +89,7 @@ error until the logic is written and something is silently missing.
 | `tab_variant_task_overview` | `tab_id, tab_variant_id, task_id` | Per table-variant override — which task variant shows, its ordering/visibility. |
 | `task_variant_look_up_overview` | `task_id, task_variant_id, task_ref_id` | Per-variant override of a look-up. |
 
-To show table tasks as buttons inside the Grid (inline action bar), see `thinkwise_sf_subject_components` (Grid).
+To show table tasks as buttons inside the Grid (inline action bar), see `thinkwise-sf-subject-components` (Grid).
 
 ## Task logic types (`task.task_type_id`)
 
@@ -98,7 +97,7 @@ This decides what kind of program object the task actually generates:
 
 | task_type_id | Shown as | When to use it |
 |---|---|---|
-| `STORED_PROCEDURE` | Template | The default for real server-side logic. Generates an actual stored procedure from a control-procedure Template — everything in `thinkwise_sf_control_procedures` applies to this type. **Only this type has a template to assign.** |
+| `STORED_PROCEDURE` | Template | The default for real server-side logic. Generates an actual stored procedure from a control-procedure Template — everything in `thinkwise-sf-control-procedures` applies to this type. **Only this type has a template to assign.** |
 | `FUNCTION` | GUI code | Client-side logic that never touches the database — copy-to-clipboard, open a URL, trigger a download. No control-procedure template; the logic lives in GUI code instead. |
 | `EXTERNAL_PROCEDURE` | External stored procedure | Calls a stored procedure that already exists in the database, outside anything the Software Factory generates. |
 | `EXTERNAL_FUNCTION` | External function | Same idea, for a database function. |
@@ -122,19 +121,19 @@ for Template tasks), `synchronous_with_progress_possible_async` (3).
 ## Task-level row &amp; behavior settings (`task` entity)
 
 Beyond `task_type_id` and `type_of_communication` above, these `task` fields govern how the task
-behaves once triggered against `sf/manage_tasks`:
+behaves once triggered:
 
 | Field | Shown as | When to set it |
 |---|---|---|
 | `single_transaction` | Atomic transaction | On for a Template task whose related data changes must succeed or roll back together. |
-| `ask_confirmation` / `confirmation_msg_id` | Ask confirmation | On for destructive/irreversible/expensive/high-impact actions, with a specific message — see `thinkwise_sf_messages`'s "Task confirmation messages". |
-| `popup_for_each_row` | Popup for each row | Off (the default) to show the task's form/confirmation once for the whole selection; on only when each selected row genuinely needs its own input or its own confirmation — flipping it on for an ordinary bulk action is the message-storm anti-pattern (`thinkwise_sf_messages`). |
+| `ask_confirmation` / `confirmation_msg_id` | Ask confirmation | On for destructive/irreversible/expensive/high-impact actions, with a specific message — see `thinkwise-sf-messages`'s "Task confirmation messages". |
+| `popup_for_each_row` | Popup for each row | Off (the default) to show the task's form/confirmation once for the whole selection; on only when each selected row genuinely needs its own input or its own confirmation — flipping it on for an ordinary bulk action is the message-storm anti-pattern (`thinkwise-sf-messages`). |
 | `shift_code` + `ascii_code` | Shortcut | Together form the keyboard shortcut (a modifier plus a key code) — set both or neither; avoid GUI/reserved or duplicate combinations. |
-| `show_badge` + `badge_interval` | Show badge / Badge interval (seconds) | Only when a meaningful badge query will actually be implemented and refreshed at a sensible interval — see the Badge concept in `thinkwise_sf_control_procedures`. |
+| `show_badge` + `badge_interval` | Show badge / Badge interval (seconds) | Only when a meaningful badge query will actually be implemented and refreshed at a sensible interval — see the Badge concept in `thinkwise-sf-control-procedures`. |
 | `repeat_after_execute` | Repeat after execute | On for repetitive capture workflows (e.g. scanning) where the form should reopen immediately after each execution, not for ordinary one-shot actions. |
 | `generation_order_no` | Generation order | Change only when one generated task genuinely depends on another having generated first. |
 | `offline_executable` | Offline executable | On only after checking platform constraints — an offline task cannot use look-ups, and any parameter meant to be filled by the user (rather than an offline-safe default) must be hidden. |
-| `icon_id` | Icon | Set to a suitable icon from the repository as part of creating the task — the task's own icon wherever it appears (action bars, menus). Follow `thinkwise_sf_icons`; a task icon should show the outcome/verb, not a generic gear. |
+| `icon_id` | Icon | Set to a suitable icon from the repository as part of creating the task — the task's own icon wherever it appears (action bars, menus). Follow `thinkwise-sf-icons`; a task icon should show the outcome/verb, not a generic gear. |
 
 ## Bound, unbound &amp; table tasks — and the security implication
 
@@ -149,6 +148,10 @@ A **table task** is the same `task` row plus a `tab_task` binding — that's wha
 context and lets `tab_task_parmtr` auto-fill a parameter from the current row's column (see
 Parameters below).
 
+**A task on a menu runs without a record**: every mandatory input parameter must then be editable or
+get a value from a default (a parameter default, or `use_defaults` on the task with Default logic) —
+otherwise the user can't run it.
+
 ## Parameters (`task_parmtr`)
 
 Each row is one input or output on the task's form, independent of any table:
@@ -160,18 +163,20 @@ Each row is one input or output on the task's form, independent of any table:
 | `mand` | Static mandatory-ness, before any dynamic Layout logic can loosen or tighten it. |
 | `dom_id` | Domain backing the parameter's type/control — set explicitly, don't trust a default. |
 | `type_of_default_value` / `default_value` / `default_value_query` | A literal default, or a query evaluated when the form opens — the lightweight alternative to a full Default control procedure. |
-| `case_type` | Upper / lower / initial caps / proper case, enforced on input. |
+| `case_type` | Not a `task_parmtr` field in SF 2026.2: input casing (upper / lower / initial caps / proper case) comes from the parameter's domain, `dom.case_type`. |
 | `alias_task_parmtr_id` | Points this parameter's identity at another parameter's — the same borrowing pattern `col.alt_transl_col_id` uses for columns, for deliberately sharing presentation/translation rather than duplicating it. |
 | `label_width` / `field_width` / `field_height_in_positions` / `field_no_of_positions_further` / `field_in_next_col` | Static form placement/sizing — pure layout, no code. |
 | `form_field_in_next_grp` + `form_next_grp_label` | Starts a new labelled group on the form. |
 | `field_on_next_tab` + `next_tab_label` | Starts a new section/tab on the form. |
-| `layout_input` / `layout_type_output` / `layout_mand_output` | Column-level gate for the Layout concept (see Form setup). |
-| `default_input` / `default_output` | Column-level gate for the Defaults concept (see Form setup). |
+| `layout_input` / `layout_type_output` / `layout_mand_output` | Column-level gate for the Layout concept (see Form setup). Read-only until the task's `use_layouts` is on. |
+| `default_input` / `default_output` | Column-level gate for the Defaults concept (see Form setup). Read-only until the task's `use_defaults` is on. |
 
 **Table task parameter binding**: `tab_task_parmtr` (keyed by `tab_id, task_id, col_id,
 task_parmtr_id`) binds a parameter to a specific column of the bound table so it auto-fills from
 the selected row instead of asking the user to type it. This is the explicit step needed to give a
-table task the row's PK or any other row-derived value — nothing does this automatically.
+table task the row's PK or any other row-derived value — nothing does this automatically: a
+parameter whose id matches a column id still receives `null` without its `tab_task_parmtr` row. Write
+rules for the binding: `references/task_maintenance.md`, "Assigning table tasks".
 
 ## Task look-ups and form setup
 
@@ -187,25 +192,25 @@ guidance on which to reach for), read `references/task_form_and_lookups.md`.
 ## Variants, assignment, logic, and translation
 
 - **Task variants** — an alternative presentation of the same task; the general variant mechanic
-  lives in `thinkwise_sf_variants`.
+  lives in `thinkwise-sf-variants`.
 - **Assigning a table task** — one `tab_task` row per (table, task). Two variants on the same table
   screen need two *table* variants via `tab_variant_task_overview`, not two `tab_task` rows.
 - **A task's own logic** is an ordinary control procedure; only `STORED_PROCEDURE` tasks go through
-  the Assigning flow (`thinkwise_sf_control_procedures`).
+  the Assigning flow (`thinkwise-sf-control-procedures`).
 - **Translation** — a task's name, tooltip and every parameter translate separately; see
-  `thinkwise_sf_translations`.
+  `thinkwise-sf-translations`.
 
 For the step-by-step on each (variant creation and parameter overrides, bulk-copying an assignment
 with `task_copy_task`/`task_copy_tab`, renaming/deleting, and the per-object translation ids), read
 `references/task_maintenance.md`.
 
-## `task.object_name` / `task.task_description` reject a direct patch
+## `task.object_name`
 
-Both can reject a direct patch with an "unknown property"-style error **even set in complete
-isolation** — they look editable in the staged view but the write layer refuses them.
-`object_name` auto-derives from `task_id` (observed default: `<code_type_prefix>_` + `task_id`) and
-is not reliably overridable this way. If a task genuinely needs a different generated object name,
-treat it as unresolved through this write path rather than retrying the same patch.
+`object_name` auto-derives from `task_id` (default `<code_type_prefix>_` + `task_id`). A direct patch
+works on a single-domain Indicium instance; it has been refused with an "unknown property"-style error
+elsewhere, even set in isolation. Change it only when a task genuinely needs a different generated
+object name, read it back, and on a refusal set it in the Software Factory instead of retrying.
+`task_description` is editable on the add and afterwards.
 
 ## Pre-flight checklist
 
@@ -215,8 +220,8 @@ treat it as unresolved through this write path rather than retrying the same pat
   identify the row — it is never supplied automatically.
 - **Check `task_type_id` before assigning a template.** Only `STORED_PROCEDURE` goes through the
   control-procedure Assigning flow.
-- **Both enablement gates** — task-level `use_layouts`/`use_defaults` *and* parameter-level
-  input/output flags — before assuming a Default/Layout template actually runs.
+- **Both enablement gates** — task-level `use_layouts`/`use_defaults`/`use_badges` *and*
+  parameter-level input/output flags — before assuming a Default/Layout/Badge template actually runs.
 - **One `tab_task` row per (table, task).** Two variants on the same table screen need two table
   variants (via `tab_variant_task_overview`), not two `tab_task` rows.
 - **Hiding a task isn't securing it.** An unassigned task is still callable via the API; use

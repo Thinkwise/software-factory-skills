@@ -15,12 +15,19 @@ first, every time.
 - Use a domain with domain elements if you need to program on values (not magic strings/numbers).
 - Avoid `distinct` (e.g. count via a `group by` in a derived table instead of `count(distinct …)`)
   — it blocks predicate pushdown; see "Write pushdown-safe queries" below.
-- Avoid `union` without `all` — same reason.
+- Avoid `union` without `all` — same reason. Use `union` only when duplicates must go and the
+  queries can overlap, with a comment on the line before saying why.
 - Use `local static read_only forward_only` cursors when a cursor is genuinely unavoidable.
 - Use `begin`/`end` in every `if`/`while`, even single-line ones.
 - Use `tsf_send_message` instead of `raiserror`, always.
 - Only use `apply` when joining a table-valued function or subquery.
 - Every `begin tran` needs a matching `rollback tran` and `commit tran`.
+- **SQL Server, Msg 8124 — verified live**: inside a subquery or `apply`, an aggregate whose argument
+  combines a column of the outer query with another column (`sum(n.digits * p.pos)` with `n` outer)
+  fails when the code group is generated. Compute the expression per row in a derived table inside the
+  subquery first, then aggregate that column:
+  `select sum(x.weight * x.digit) from (select <expr> as weight, <expr> as digit from …) x`.
+  PostgreSQL accepts the mixed form, so a template written for both platforms needs the derived table.
 - **A recursive CTE can't be nested inside any subquery expression, in any code type — verified
   live.** This is broader than a Trigger-specific restriction: `if exists (with cte as (...) select
   1 from cte ...)` fails with a syntax error near `with` on a Handler exactly the same way it does on

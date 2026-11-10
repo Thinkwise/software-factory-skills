@@ -126,7 +126,7 @@ delete from route_details where route_id = @route_id
 ```
 
 **Check `branch_rdbms_type` before writing any of this.** See the
-`thinkwise_sf_control_procedures` skill for the full dialect-check walkthrough;
+`thinkwise-sf-control-procedures` skill for the full dialect-check walkthrough;
 the essential rule is: never assume SQL Server syntax works on PostgreSQL, or vice versa — verify first.
 Specifically for this JSON parsing/building pattern: `openjson`/`cross apply`/`for json path` are SQL
 Server-specific; on PostgreSQL the equivalent parsing uses `jsonb_array_elements`/

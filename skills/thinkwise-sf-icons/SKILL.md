@@ -5,11 +5,11 @@ description: Reference guide for the icon repository (icon/icon_grp/icon_tag) an
 
 # Icons in the Thinkwise Software Factory
 
-Every entity, field, and bound task below was confirmed live against a real connected model (domain
-`sf/software_development`). The semantic guidance (which concept fits
+Domain: single-domain `sf/software_development`; on split-domain instances find the domain holding
+`icon` with `search_domain_capabilities`. The semantic guidance (which concept fits
 which object/action/state) is design guidance, not a database rule; it lives in
 `references/icon_selection_guide.md` to keep this file focused on mechanics. Follow
-`thinkwise_sf_base` for connector/model/branch resolution and the shared
+`thinkwise-sf-base` for connector/model/branch resolution and the shared
 confirm-before-mutate / ask-don't-default rules before making any of the writes described here.
 
 ## The repository: `icon` / `icon_grp` / `icon_tag`
@@ -21,7 +21,7 @@ confirm-before-mutate / ask-don't-default rules before making any of the writes 
 | `icon_tag` | `(model_id, branch_id, icon_id, tag_id)` | The platform's generic tagging mechanism (`tag` entity) applied to an icon, plus a free `value`. A second, orthogonal way to classify an icon beyond `icon_grp_id` — e.g. tag by visual family/source without forcing every icon into one group. |
 
 Both `icon` and `icon_grp` are branch-scoped like every other design-time object (`model_id`/`branch_id`
-in the key) — see `thinkwise_sf_base` on why an unfiltered query can silently mix rows
+in the key) — see `thinkwise-sf-base` on why an unfiltered query can silently mix rows
 from an unrelated model/branch.
 
 **A brand-new / empty model has no `icon` rows** — the repository is not seeded automatically.
@@ -37,7 +37,9 @@ skipped step, when the user doesn't want to link a base model just for icons).
 
 **Two query/write mechanics:**
 - Query `icon` **with an explicit `$select=icon_id,icon_title`** — a bare read returns the full
-  base64 `icon_data` blob per row and overflows the response fast. Filter by `icon_title` (the plain
+  base64 `icon_data` blob per row and overflows the response fast. The same goes for every entity
+  that carries a local `<x>icon`/`<x>icon_data` pair (tables, tasks, prefilters, their variant
+  overviews, …): always `$select` the fields you need. Filter by `icon_title` (the plain
   material name, e.g. `calendar_month`, `work`, `groups`, `category`).
 - Setting an `*_icon_id` field to a bare integer id needs `value_kind: "data"` on the patch — the
   `icon.icon_look_up` lookup "has no key to select by" and rejects the number otherwise.
@@ -105,15 +107,15 @@ repository.
 | `tab_prefilter` | `icon_id` | `icon`/`icon_data` | A single prefilter's icon. |
 | `tab_prefilter_grp` | `icon_id` | `icon`/`icon_data` | A prefilter group's icon. |
 | `menu` | `icon_id` | `icon`/`icon_data` | The whole menu's icon (shown when switching between menus). |
-| `list_bar_grp` | `icon_id` | `icon`/`icon_data` | A list-bar menu group's icon. Weak entity — its edit key is `(model_id, branch_id, menu_id, list_bar_grp_id)`, not `list_bar_grp_id` alone; see `thinkwise_sf_base` on weak-entity edit keys. |
+| `list_bar_grp` | `icon_id` | `icon`/`icon_data` | A list-bar menu group's icon. Weak entity — its edit key is `(model_id, branch_id, menu_id, list_bar_grp_id)`, not `list_bar_grp_id` alone; see `thinkwise-sf-base` on weak-entity edit keys. |
 | `tile_grp` | `icon_id` | `icon`/`icon_data` | A tile group's icon. |
 | `module_grp` | `icon_id` | `icon`/`icon_data` | A legacy tree menu's module-group icon. |
 | `tab_task_grp` | `icon_id` | `icon`/`icon_data` | A table action-bar task-group icon. |
 | `tab_report_grp` | `icon_id` | `icon`/`icon_data` | A table action-bar report-group icon. |
 | `cube_view` | `cube_view_icon_id` | `cube_view_icon`/`cube_view_icon_data` | A cube view's icon (e.g. on a BI menu/tile). |
-| `msg_option` | `icon_id` | `icon`/`icon_data` | A modeled message's option button (confirm/retry/cancel-style choices) — see `thinkwise_sf_messages`. |
+| `msg_option` | `icon_id` | `icon`/`icon_data` | A modeled message's option button (confirm/retry/cancel-style choices) — see `thinkwise-sf-messages`. |
 | `elemnt` | `icon_id` | `icon`/`icon_data` | A single domain element's (enum value's) icon — renders when the owning `dom.control_id` is set to an icon-based control (an image/icon combo or radio-style presentation), not for a plain text/combo domain. |
-| `cube_view_field_conditional_layout` | `image_id` (confirmed FK into `icon.icon_look_up`, same repository, just named "image") | `image`/`image_data` | An icon-based conditional layout — showing an icon instead of/alongside color for a computed condition. See `thinkwise_sf_conditional_layouts` and `thinkwise_sf_cubes`. |
+| `cube_view_field_conditional_layout` | `image_id` (confirmed FK into `icon.icon_look_up`, same repository, just named "image") | `image`/`image_data` | An icon-based conditional layout — showing an icon instead of/alongside color for a computed condition. See `thinkwise-sf-conditional-layouts` and `thinkwise-sf-cubes`. |
 | `screen_component` | `tab_page_icon_id` | `tab_page_icon`/`tab_page_icon_data` | A custom screen component's tab-page icon (multi-page custom components). `screen_component_type_icon`/`_data` also exists but is the component *type's* own icon, not settable per instance. |
 | `col` | `form_next_grp_icon_id`, `next_tab_icon_id` | matching `form_next_grp_icon`/`_data`, `next_tab_icon`/`_data` | A column's "jump to related form group" / "jump to related tab" navigation icons. |
 | `report_parmtr` | same two `_id` fields | same local pairs | Same navigation-icon pattern, on a report parameter. |
@@ -163,10 +165,10 @@ that exact object type says otherwise (step 0 below).**
    existing icon matching the concept before creating a new one — see
    `references/icon_selection_guide.md` for how to judge "matching."
 2. **If nothing in the repository fits, don't upload or pick unilaterally — ask the user.** Present
-   what you searched for and why nothing matched, then ask (via `AskUserQuestion` or a plain question)
+   what you searched for and why nothing matched, then ask the user (see `thinkwise-sf-base` §1)
    whether they want to (a) upload a specific icon file themselves for you to add to the repository, or
    (b) name a specific existing icon (even an imperfect fit) to use instead. This mirrors
-   `thinkwise_sf_maps`'s existing rule for `elemnt.icon` — don't silently pick a
+   `thinkwise-sf-maps`'s existing rule for `elemnt.icon` — don't silently pick a
    "close enough" icon or leave the field blank when no confident match exists.
 3. Set the target field to the chosen `icon_id` (repository) via `patch_resource`/`stage_resource` —
    prefer the `_id` field over the entity's own local `icon`/`icon_data` upload pair wherever both exist
@@ -177,7 +179,7 @@ that exact object type says otherwise (step 0 below).**
    `task_update_icon_usage` (redirect *this* object's assignment to a different, more specific icon by
    changing the field directly; use the task only when you actually want to repoint *every* usage of one
    icon at once, e.g. consolidating duplicates).
-5. Per `thinkwise_sf_base`'s confirm-before-mutate rule: state which icon (existing or
+5. Per `thinkwise-sf-base`'s confirm-before-mutate rule: state which icon (existing or
    new) you're assigning and why before the first mutating call, especially for a menu/table/task icon
    that's user-visible across the whole application, not just a low-stakes internal object.
 6. **After setting `dom.control_id` to an icon-capable control** (e.g. `IMAGE_COMBO`) so `elemnt.icon_id`

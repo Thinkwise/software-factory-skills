@@ -1,13 +1,13 @@
 # Scheduler click-to-create, double-click popup, and external drag-drop
 
-Loaded on demand from `thinkwise_sf_schedulers`.
+Loaded on demand from `thinkwise-sf-schedulers`.
 
 ## External drag-and-drop
 
 Users can drag rows from an unrelated grid/tree (a backlog of unassigned orders) onto a time cell to
 create an activity from them, via a **drag-drop link** (`drag_drop` entity family — the full field
 reference for `drag_drop`/`drag_drop_parmtr`/`drag_drop_matrix`, including the `drop_behavior`
-enum and the variant-combination matrix, lives in `thinkwise_sf_subject_components`;
+enum and the variant-combination matrix, lives in `thinkwise-sf-subject-components`;
 this section only covers what's specific to a Scheduler as the drop target):
 
 1. On the source subject, define a drag-drop link: source tab, target tab (the Scheduler's subject),
@@ -45,21 +45,21 @@ an actual click before relying on it silently working.
 **A parameter that should render as a look-up in the task's input form isn't automatically one just
 because its domain matches a real table's primary key.** Model a task-level reference for it (the task
 equivalent of a table's `ref`) pointing at the source table, the same way an FK-shaped view column
-needs its own `ref`/`ref_col` before it gets look-up behavior (see `thinkwise_sf_data_model`).
+needs its own `ref`/`ref_col` before it gets look-up behavior (see `thinkwise-sf-data-model`).
 
 **Known limitation**: no built-in way to disable "Add activity" for specific resources/resource
 groups. Workaround: a default value or a process-flow check that blocks execution and shows a message.
 
 **Hide the task's own display**: an Add-activity task is meant to be triggered only by the click,
-never as a manual toolbar button sitting next to it — set the table task's display type to hidden
-(leave it enabled/shown as a table task otherwise; hiding only its button rendering doesn't disable
+never as a manual toolbar button sitting next to it — set `tab_task.custom_display_type` to hidden, which is the number `4`
+(a name is refused with `invalid_input`; `overflow` is 3) (leave it enabled/shown as a table task otherwise; hiding only its button rendering doesn't disable
 the click-to-create binding, which fires independently of button visibility).
 
 **The new Add-activity task (and its parameters) needs translating too.** Like any newly created
 task, it's created with a bracket-placeholder translation (`[employee_schedule_add_activity]`) —
 that's what shows on the table-task button/toolbar until it's translated, not a broken label.
 `scheduler_view` rows (e.g. `month`, `work_week`) get the same placeholder treatment. Follow
-`thinkwise_sf_translations` after wiring up the Scheduler to catch these
+`thinkwise-sf-translations` after wiring up the Scheduler to catch these
 alongside the underlying subject's own table/column labels.
 
 ### Double-click — two valid routes

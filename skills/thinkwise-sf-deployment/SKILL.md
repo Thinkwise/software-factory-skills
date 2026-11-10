@@ -5,34 +5,28 @@ description: Reference guide for starting, monitoring, and controlling a Thinkwi
 
 # Generating and deploying a Thinkwise Software Factory application
 
-Definition generation and deployment are modeled as **jobs** in a dedicated domain,
-`sf/software_development` — distinct from the `sf/manage_datamodel`-style domain most other
-Software Factory skills use for tables/tasks/screens. Confirm connector, `model_id`, and
-`branch_id` per `thinkwise_sf_base` before starting a job; a repository commonly
-holds several models, each with several branches, and a job always runs against one specific
-`(model_id, branch_id)` pair.
-
-Canonical flow, same as every other domain: `search_domain_capabilities` (intent `action`, keywords
-like "generate definition") → `get_task_definition` → `stage_task` → `commit_resource`. Do not guess
-task or parameter names — this domain has several similarly-named tasks (see below) that are easy to
-confuse.
+Definition generation and deployment are modeled as **jobs**. **Domain:** `sf/software_development`
+on both layouts — on split-domain instances it is a domain of its own, separate from the `sf/manage_*`
+modeling domains; on single-domain instances everything lives there; otherwise find it with
+`search_domain_capabilities` (keywords like "generate definition"). Confirm connector, `model_id`, and
+`branch_id` per `thinkwise-sf-base` before starting a job; a job always runs against one specific
+`(model_id, branch_id)` pair. Several job tasks have near-identical names (see below) — read each
+task definition before staging.
 
 ## The two tiers of job
 
 | Tier | Task | Binding | What it does |
 |---|---|---|---|
-| Generate definition only | `add_job_to_generate_definition` | Unbound | Runs just the definition-generation step(s). Verified live end-to-end this session. |
-| Full pipeline ("complete creation") | `task_add_job_to_do_complete_creation` | Bound to `definition_generation_overview` | One job that can chain generate → validate → generate source code → write code files/program objects → execute source code → unit/smoke tests → sync to IAM or create a deployment package, each stage individually toggled on/off with its own error-handling policy. |
+| Generate definition only | `add_job_to_generate_definition` | Unbound | Runs just the definition-generation step(s). |
+| Full pipeline ("complete creation") | `task_add_job_to_do_complete_creation` | Bound to `definition_generation_overview` | **Not usable through the Indicium write API on either domain layout — run the stages as separate jobs (see Tier 2).** One job that can chain generate → validate → generate source code → write code files/program objects → execute source code → unit/smoke tests → sync to IAM or create a deployment package, each stage individually toggled on/off with its own error-handling policy. |
 
 **A near-duplicate unbound task exists, unverified**: `add_job_to_generate_definition_checks` has an
 *identical* mandatory-parameter signature to `add_job_to_generate_definition` (`model_id`,
 `branch_id`, `error_handling`, `debug`) and the same "Generate definition" description. A bound
 variant, `task_add_job_to_generate_definition_checks` (on `definition_generation_overview`), is
 described "Execute all code files" instead — a different label for what looks like the same
-parameter set. None of the `_checks`-suffixed variants were exercised this session; only the plain
-`add_job_to_generate_definition` was run and confirmed to work as expected. If a `_checks` variant
-seems like the better fit for a task, verify its actual behavior against a live job before relying on
-it, and update this note with what's found.
+parameter set. Use the plain `add_job_to_generate_definition`; if a `_checks` variant seems the better
+fit, verify its behavior against a live job before relying on it.
 
 ### Tier 1 — generate definition only
 
@@ -51,6 +45,15 @@ stage_task(add_job_to_generate_definition, properties: [model_id, branch_id, err
 
 ### Tier 2 — full pipeline (`task_add_job_to_do_complete_creation`)
 
+**(Indicium · split-domain) This task cannot be used through the write API**: its staged variant
+answers `staged_resource_type_not_found` on every property write, so no flag can be set, and its
+defaults run every stage, including `run_sync`. On another layout, stage it once and check that a flag
+write lands before relying on it; if it doesn't, abort the staged task. Run the stages as separate jobs instead — set upgrade source,
+generate definition, validate, generate code, connect, execute, unit/smoke tests — each started and
+monitored on its own; the task names, job types, bindings, and parameters are in
+`references/job_pipeline.md`. The flag table below documents what the stages are (and what to ask the
+user about per stage), not a way to start the task.
+
 Bound to `definition_generation_overview`. Every stage is an independent boolean flag with its own
 error-handling enum where relevant — nothing here has an obviously-safe default, so **ask the user
 which stages to run** rather than turning them all on:
@@ -59,6 +62,7 @@ which stages to run** rather than turning them all on:
 |---|---|---|
 | `execute_complete_creation` | enum | `complete` (1), `selected` (0), `selected_start_with_none` (2), `custom` (3) — which of the flags below apply |
 | `creation_preset_id` | string, optional | a saved preset of these settings |
+| `model_vrs_name` | string | name of the model version the run records; mandatory on the staged task, although the task definition lists it as optional |
 | `generate_definition` | bool | run definition generation |
 | `generate_definition_error_handling` | enum | same 3 values as Tier 1's `error_handling` |
 | `validate_definition` | bool | run validation |
@@ -86,11 +90,9 @@ A related bound task, `task_add_job_to_do_complete_creation_checks` (same entity
 parameters beyond the bound key), was found via metadata only and not exercised — likely a dry-run
 "can this job run" check, but confirm behavior live before depending on it.
 
-**If the complete-creation task can't be parameterized** (its staged task refuses property writes,
-leaving mandatory flags like `sync_target_iam_id` unset), run the stages as separate jobs. For the
-four-job recipe (generate definition → validate → generate code → execute source code), how to bind
-the validate and generate-code tasks, monitoring entities per job, `upgrade_method` choice, and reading
-validation errors, read `references/job_pipeline.md`.
+For the separate-jobs recipe, how to bind the validate and generate-code tasks, monitoring per job
+(including the connect/execute logs), `upgrade_method` choice, and reading validation errors, read
+`references/job_pipeline.md`.
 
 **Code generation uses the last generated definition.** After any model change, regenerate the
 definition before generating and deploying code; otherwise procedure signatures and the GUI disagree at
@@ -100,7 +102,7 @@ runtime ("expects parameter '@x', which was not supplied").
 
 `error_handling`/`generate_definition_error_handling`, `debug`, and every stage-toggle in the
 complete-creation pipeline are genuine operational decisions, not mechanical CRUD fields — per
-`thinkwise_sf_base`'s ask-don't-default rule, ask the user rather than silently
+`thinkwise-sf-base`'s ask-don't-default rule, ask the user rather than silently
 defaulting, especially for `execute_source_code`/`run_sync`. `pause_and_await_user_input` is the
 lowest-risk error-handling choice when unsure, since it stops for a decision instead of silently
 skipping or aborting — but confirm even that with the user rather than assuming it.
@@ -112,15 +114,18 @@ Passing an enum parameter's snake_case key (e.g. `"pause_and_await_user_input"`,
 with `invalid_input` — that key is an internal identifier, not a valid input value. What works: the numeric value as a string with `value_kind: "data"` (e.g.
 `{"property": "error_handling", "value": "0", "value_kind": "data"}`), or presumably the exact
 human-readable display label. After a failed enum property in a multi-property `stage_task`/
-`patch_resource` call, later properties in the same ordered list may be silently skipped
+`patch_resource` call, every later property in the same ordered list is skipped
 (`not_applied`) — always re-read the returned `fields` and re-patch anything that didn't take, per
-the mcp_base multi-property-patch hazard.
+the `thinkwise-sf-base` multi-property-patch hazard.
+
+`get_task_definition` can list an enum parameter as plain `Edm.Byte` with no `enumValues` at all. Then
+take the numeric values from the parameter tables in this skill — don't guess a number.
 
 ## Verified gotcha — `branch` has no `description` column
 
 Querying `/branch?$select=model_id,branch_id,description` fails — `branch` has no `description`
 property. Use `$select=model_id,branch_id` (or no `$select`) when listing branches for a model, per
-the mcp_base "verify unfamiliar field names before querying" rule.
+the `thinkwise-sf-base` "verify unfamiliar field names before querying" rule.
 
 ## Discovering the branch(es) for a model
 
@@ -128,7 +133,7 @@ the mcp_base "verify unfamiliar field names before querying" rule.
 execute_odata_query(sf/software_development, /branch?$filter=model_id eq '<MODEL_ID>'&$select=model_id,branch_id)
 ```
 
-Only ask the user to pick a branch (per mcp_base) if more than one row comes back.
+Only ask the user to pick a branch (per `thinkwise-sf-base`) if more than one row comes back.
 
 ## Monitoring a job
 
@@ -150,11 +155,16 @@ lists each step with its own `definition_generation_step_status` (`not_executed`
 `control_proc_id` actually being run for that step. `definition_generation_step_log` carries
 per-step error detail (`error_no`, `error_severity`, `error_msg`, `error_proc`, `error_line`) — read
 this when a step fails to get the actual database/generation error rather than just the status.
+**A completed job can still have failed steps** — always read the steps after the job finishes, not
+only the job's own status. For the connect/execute/test jobs, see `references/job_pipeline.md`'s
+"Monitoring".
 
 A parallel `definition_validation_overview` entity (key `job_id, model_id, branch_id`) exists for
 validation with its own status enum (same 9 values as generation) and a
 `definition_validation_log` detail. Start a standalone validation with `task_add_job_to_validate_all`
-(see `references/job_pipeline.md`).
+(all validations) or `task_add_job_to_validate_grp` (one validation group); both bind to
+`validation_modeler`, whose rows exist only after a first definition generation (see
+`references/job_pipeline.md`).
 
 ## Resolving a paused step (`wait_for_user`)
 
@@ -175,11 +185,18 @@ For a standalone validation job, the equivalent is `task_abort_definition_valida
 job after its current step finishes — not an instant kill. The same task exists bound to
 `definition_validation_overview` for a standalone validation job.
 
+## Data migration mapping
+
+The data migration mapping is relative to the branch's upgrade source (set it before generating the
+definition). Regeneration renumbers the mapping rows, manual rows survive regeneration, a table/column
+rename records one automatically, and `data_migration_col` is scoped by `to_model_id`/`to_branch_id`.
+Tasks and details: `references/job_pipeline.md`'s "Data migration mapping".
+
 ## Pre-flight checklist
 
-- **Ask which tier** the user wants — definition generation alone, or the full complete-creation
-  pipeline — and ask about every non-obvious flag (error handling, debug, and every stage toggle in
-  Tier 2), rather than defaulting.
+- **Ask which tier** the user wants — definition generation alone, or the full pipeline (run as
+  separate jobs where the complete-creation task isn't usable through the write API) — and ask about
+  every non-obvious choice (error handling, debug, and which stages to run), rather than defaulting.
 - Treat `execute_source_code` and `run_sync` as high-blast-radius flags needing explicit
   confirmation, since they reach a live database or external IAM/deployment artifact.
 - Pass enum parameters as their numeric `data` value (or exact display label) — never the snake_case

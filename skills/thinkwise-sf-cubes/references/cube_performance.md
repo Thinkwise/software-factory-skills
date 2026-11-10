@@ -1,6 +1,6 @@
 # Cube performance in the Universal UI
 
-Loaded on demand from `thinkwise_sf_cubes`.
+Loaded on demand from `thinkwise-sf-cubes`.
 
 ## Why a cube that was fine in the Windows GUI can be slow in the Universal UI
 
@@ -13,7 +13,7 @@ Loaded on demand from `thinkwise_sf_cubes`.
 In the Universal UI, **every expand is a filtered, aggregated query**. Expanding `EU` in a
 region-grouped sales cube becomes `where region = 'EU'` plus a `group by`. Whether that filter
 reaches the base table or waits for the whole view to be built is decided by predicate pushdown. See
-`thinkwise_sf_control_procedures`' `references/sql_style_guide.md`, "Write pushdown-safe queries".
+`thinkwise-sf-control-procedures`' `references/sql_style_guide.md`, "Write pushdown-safe queries".
 
 **"Expand all" (2026.1+)** fires every subcategory query at the same time. On a pushdown-friendly
 cube that's a convenience. On a view that blocks pushdown, it stalls the cube.
@@ -32,4 +32,4 @@ cube that's a convenience. On a view that blocks pushdown, it stalls the cube.
 - Use a window-function (`row_number`/`rank`/…) or `distinct`-derived column as a dimension.
 - Expect a filter on an aggregated column, or on a `distinct` view, to push down.
 - Reach for a persisted precomputed table as the first fix. It's a last resort (see
-  `thinkwise_sf_views`, "Performance").
+  `thinkwise-sf-views`, "Performance").

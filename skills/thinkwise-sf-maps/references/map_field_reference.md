@@ -1,6 +1,6 @@
 # map / map_base_layer / map_overlay / map_data_mapping field reference
 
-Loaded on demand from `thinkwise_sf_maps`.
+Loaded on demand from `thinkwise-sf-maps`.
 
 ## `map` — field reference
 
@@ -8,12 +8,13 @@ Keyed by `(model_id, branch_id, tab_id)` — one row per table that has a maps c
 
 | Column | Purpose |
 |---|---|
-| `initial_latitude` / `initial_longitude` / `initial_zoom_level` | Where the map centers when first opened, if not auto-fitting to data |
+| `initial_latitude` / `initial_longitude` / `initial_zoom_level` | Where the map centers when first opened, if not auto-fitting to data. `initial_zoom_level` is mandatory |
 | `latitude_longitude_col_id` | The CoordSets-producing column (above) |
 | `data_mapping_col_id` | The domain-based column selecting which `map_data_mapping` style applies to a row — see next section for the exact matching contract |
 | `popup_col_id` | Column shown in the shape's popup on click — often an HTML calculated field |
 | `use_custom_label_col_id` (flag) / `label_col_id` | Optional always-visible label per shape, instead of only-on-click popup content |
-| `marker_location_task_parmtr_id`, `line_location_task_parmtr_id`, `polygon_location_task_parmtr_id`, `rectangle_location_task_parmtr_id`, `circle_location_task_parmtr_id` | **Geometric Type Creation** wiring — which task parameter receives the coordinates when a user draws that shape type on the map. Leave all five unset for a purely display/server-calculated map (verified: the reference model's two maps used none of them). See "Drawable shapes" below |
+| `add_marker_task_id`, `add_line_task_id`, `add_polygon_task_id`, `add_rectangle_task_id`, `add_circle_task_id` | **Geometric Type Creation** — the task that runs when a user draws that shape type on the map |
+| `marker_location_task_parmtr_id`, `line_location_task_parmtr_id`, `polygon_location_task_parmtr_id`, `rectangle_location_task_parmtr_id`, `circle_location_task_parmtr_id` | The parameter of that task which receives the drawn coordinates. Each stays hidden until its `add_<shape>_task_id` is set — send the task first, then the parameter. Leave both sets unset for a purely display/server-calculated map. See "Drawable shapes" below |
 
 **Lookup restriction on the five `*_location_task_parmtr_id` fields**: their navigation properties
 target `task_parmtr.only_alphanumeric` — only task parameters passing that filter are selectable.
@@ -39,7 +40,7 @@ map_base_layer_id)` / `(…, map_overlay_id)`.
 | `show_in_menu` *(overlay only)* | Whether users can toggle this overlay themselves |
 
 **If the user hasn't specified which tile provider(s) to use, ask** — per
-`thinkwise_sf_base`'s "Ask, don't default" convention, don't pick one unilaterally
+`thinkwise-sf-base`'s "Ask, don't default" convention, don't pick one unilaterally
 just because a URL template is easy to construct.
 
 Verified example — three base layers on one table, sharing one URL template with only the `lyrs` query
@@ -69,15 +70,16 @@ model: the column `map.data_mapping_col_id` points at must use domain `dom_id`; 
 `map_data_mapping_id` must equal one of that domain's element IDs (`elemnt.elemnt_id`). A domain with
 4 elements (verified: an `IMAGE_COMBO`-controlled `varchar` domain, `no_of_elemnt = 4`) needs exactly
 4 `map_data_mapping` rows to give every element a style — an element with no matching row has no
-defined rendering.
+defined rendering. The candidate rows are listed in `map_data_mapping_overview` as soon as the `map`
+row's `data_mapping_col_id` is set; editing one creates the real row (see the skill's step 5).
 
 | Column | Purpose |
 |---|---|
-| `geometric_type` (`Edm.Byte`, enum) | `marker` = 0 · `line` = 1 · `polygon` = 2 · `rectangle` = 3 · `circle` = 4 |
+| `geometric_type` (`Edm.Byte`, enum) | **send the number** — a name is refused with `invalid_input`: `marker` = 0 · `line` = 1 · `polygon` = 2 · `rectangle` = 3 · `circle` = 4 |
 | `border_color` / `fill_color` (`Edm.Int32`) | **Signed 32-bit ARGB** — see decoding formula below |
 | `border_width` | Outline width |
 | `border_opacity` / `fill_opacity` (`Edm.Byte`, 0–100) | Separate from the color's own alpha channel — both are applied |
-| `allow_drag_drop` (flag) | Lets a user reposition this shape by dragging it on the map, writing the new position back through drag/drop logic — **not** the same mechanism as the generic `drag_drop`/`drag_drop_parmtr`/`drag_drop_matrix` entity family covered in `thinkwise_sf_subject_components`; this is a map-specific flag with no task/parameter wiring of its own |
+| `allow_drag_drop` (flag) | Lets a user reposition this shape by dragging it on the map, writing the new position back through drag/drop logic — **not** the same mechanism as the generic `drag_drop`/`drag_drop_parmtr`/`drag_drop_matrix` entity family covered in `thinkwise-sf-subject-components`; this is a map-specific flag with no task/parameter wiring of its own. Only shown for `marker` rows (hidden for the other geometric types) |
 | `show_map_data_mapping` (flag) | Default on/off state for this style's legend/layer entry — **must be turned on for the style to actually render on the map at all**; don't assume it defaults to visible, verify it explicitly on every row |
 
 ### A `marker` row ignores all its color/width/opacity fields — style comes from the element's icon instead
@@ -95,15 +97,15 @@ rows actually use the color/width/opacity fields below.
 
 **The built-in icon catalog is not reliably queryable through a metadata-driven connector** — a
 model's `icon`/`icon.icon_look_up` entity can return zero rows even when icons are visibly in use
-elsewhere in that same model. This is now explained by `thinkwise_sf_icons`: nearly every
+elsewhere in that same model. This is now explained by `thinkwise-sf-icons`: nearly every
 icon-bearing entity, `elemnt` included, actually carries **two** independent mechanisms — an `icon_id`
 foreign key into the shared repository, and a local `icon`/`icon_data` file uploaded straight onto the
 row. A model whose markers were all styled via the local upload path (never entered into the shared
 `icon` repository) will show icons rendering fine in the app while the `icon` entity itself sits empty.
 Don't try to enumerate or guess a valid `icon_id` from a possibly-empty repository query. **If the user
 hasn't specified which icon a marker should use, ask** (or hand them the picker) — per
-`thinkwise_sf_base`'s "Ask, don't default" convention, and per
-`thinkwise_sf_icons`'s own rule to ask rather than guess when no confident match exists —
+`thinkwise-sf-base`'s "Ask, don't default" convention, and per
+`thinkwise-sf-icons`'s own rule to ask rather than guess when no confident match exists —
 rather than choosing one unilaterally.
 
 ### Decoding/encoding `border_color` and `fill_color` (non-marker geometric types only)

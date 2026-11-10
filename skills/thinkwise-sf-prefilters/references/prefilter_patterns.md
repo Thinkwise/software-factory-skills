@@ -7,7 +7,7 @@ value>` (the stored code, e.g. `2` — not the element's ID/name `approved` and 
 caption), grouped so they render as one set of chips. The general pattern: any column typed to a domain with a
 fixed value set (status, category, type) is a candidate — model one prefilter per value that's
 actually useful to filter by, not necessarily every value the domain defines. Reuse the domain
-guidance in `thinkwise_sf_data_model` when deciding whether the underlying column even needs
+guidance in `thinkwise-sf-data-model` when deciding whether the underlying column even needs
 a new domain versus reusing an existing one.
 
 **Caution**: a column's check constraint (e.g. `"status" in (0, 1, 2, 3)`) confirms only the valid

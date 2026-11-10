@@ -1,6 +1,6 @@
 # Prefilter query structure, states, and groups
 
-Loaded on demand from `thinkwise_sf_prefilters`.
+Loaded on demand from `thinkwise-sf-prefilters`.
 
 ## Query structure
 
@@ -11,13 +11,12 @@ current row is always aliased `t1`:
 t1.order_date < getdate
 ```
 
-**Verified: `tab_prefilter` has no `rdbms_type` dimension** — unlike `control_proc_template`, which is
-keyed per dialect (see `thinkwise_sf_control_procedures`), there is exactly one
-`query` string per prefilter, applied against every enabled RDBMS. If `branch_rdbms_type` for the
-model has more than one row, write portable SQL (avoid dialect-specific functions —
-`getdate`/`now`/`sysdate`, `top n`/`limit`, string-concat operators) or restructure the condition
-so it doesn't need one — there is no per-dialect override slot the way a template-backed view or
-control procedure has.
+**Queries are stored per RDBMS in `tab_prefilter_query`** (keyed by prefilter plus `rdbms_type`;
+add under the prefilter with `detail_nav = detail_ref_tab_prefilter_tab_prefilter_query`). Writing
+`tab_prefilter.query` writes through to the `rdbms_type` 0 (SQL Server) row only. If
+`branch_rdbms_type` for the model has more than one row, add a `tab_prefilter_query` row per extra
+platform with that dialect's SQL — or write portable SQL (no `getdate`/`now`/`sysdate`,
+`top n`/`limit`, dialect string-concat operators) and still give every platform its row.
 
 Four real examples, confirmed against a live reference model:
 
@@ -78,10 +77,12 @@ needed somewhere, model a second variant rather than fighting the check.
 
 **Role-based "Always on" / data-authorization** can force a prefilter to `On hidden` for a specific
 role regardless of what the active variant says (Access control → Model rights → Tables → Prefilters →
-Roles, per platform docs). The role/rights entity backing this was **not found** among the
-`manage_datamodel`/`manage_screentypes`-style domains checked here — none of the domains a connector
-exposed included a `role_tab_prefilter_overview`-shaped entity. Check the connector's own domain list
-for a security/IAM/rights-style domain before assuming this is unreachable through it.
+Roles, per platform docs). The backing entity is `role_tab_prefilter_overview` (key role_id, tab_id,
+tab_prefilter_id) — it exists and is update-only through the write API (verified on SF 2026.2), with
+fields `visible`, `always_on`, `available` and the bound task `task_role_tab_prefilter_set_rights`.
+The rows read `visible = true` by default; `always_on` is what forces the prefilter for the role. Read
+the row first and change only the flags that must differ — resending an unchanged value achieves
+nothing. See `thinkwise-sf-roles` for the grant mechanics.
 
 ## Prefilter groups
 

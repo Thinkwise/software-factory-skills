@@ -15,19 +15,20 @@ changed/deleted records, and planning states.
 Apply this skill whenever an MCP connector with Software Factory access is used to create, inspect, or
 troubleshoot conditional layout.
 
-## Verified domain map
+## Entity and domain map
 
-Every entity below was confirmed live against a real connected model. Conditional layout is **not one
-entity family** — it repeats, independently, once per object type it can decorate, in whichever domain
-that object type otherwise lives:
+Conditional layout is **not one entity family** — it repeats, independently, once per object type it
+can decorate. Domain: split-domain instances put each family in the domain of the object it decorates
+(column below); single-domain `sf/software_development` holds them all; otherwise find it with
+`search_domain_capabilities`.
 
-| Object type | Entities | Domain (confirmed) |
+| Object type | Entities | Domain (Indicium · split-domain) |
 |---|---|---|
-| Table (grid/form/edit/scheduler resource) | `conditional_layout`, `conditional_layout_condition`, `conditional_layout_tag` | `manage_datamodel`-style — note there's no Card list or Tree surface among the `apply_to_*` flags below; see `thinkwise_sf_subject_components` for those two components generally |
-| Task parameter form | `task_conditional_layout`, `task_conditional_layout_condition`, `task_conditional_layout_tag`, `task_variant_task_conditional_layout` (per-variant override) | `manage_tasks`-style |
-| Cube view (cells/totals) | `cube_view_field_conditional_layout` (condition fields are inline — no separate condition child, confirmed) | `manage_cubes`-style |
-| Scheduler time cells | `scheduler_view_conditional_layout`/`_condition`/`_tag` | `manage_scheduler`-style — see `thinkwise_sf_schedulers`, not duplicated here |
-| Report parameter form | `report_conditional_layout`, `report_conditional_layout_condition` | **Not reachable through this connector** — see "Known gap: report conditional layout" below |
+| Table (grid/form/edit/scheduler resource) | `conditional_layout`, `conditional_layout_condition`, `conditional_layout_tag` | `sf/manage_datamodel` — note there's no Card list or Tree surface among the `apply_to_*` flags below; see `thinkwise-sf-subject-components` for those two components generally |
+| Task parameter form | `task_conditional_layout`, `task_conditional_layout_condition`, `task_conditional_layout_tag`, `task_variant_task_conditional_layout` (per-variant override) | `sf/manage_tasks` |
+| Cube view (cells/totals) | `cube_view_field_conditional_layout` (condition fields are inline — no separate condition child, confirmed) | `sf/manage_cubes` |
+| Scheduler time cells | `scheduler_view_conditional_layout`/`_condition`/`_tag` | `sf/manage_scheduler` — see `thinkwise-sf-schedulers`, not duplicated here |
+| Report parameter form | `report_conditional_layout`, `report_conditional_layout_condition` | Not reachable in the split domains checked; reachable on single-domain — see "Report and variant conditional layout" below |
 
 ## What conditional formatting does and doesn't do
 
@@ -48,7 +49,7 @@ layout logic, context logic, rights, or database logic instead.
 | Disable a task for completed orders | Context procedure |
 | Prevent an invalid delivery date | Default, task, handler, or constraint |
 | Show the number of late orders | Badge |
-| Only show late orders | Prefilter (`thinkwise_sf_prefilters`) |
+| Only show late orders | Prefilter (`thinkwise-sf-prefilters`) |
 | Explain why a value is red | Conditional-layout help text, or a supporting status/message column |
 
 ## Should this object get a conditional layout? — the canonical test
@@ -71,10 +72,10 @@ task has parameters, or a scheduler has a resource column.**
 **Never create one without confirming with the user first.** Present the candidate column(s)/
 parameter(s), the condition, and what the formatting would communicate, and get explicit agreement
 before creating anything. A plan that includes a conditional layout is not final until that is
-confirmed. (This is `thinkwise_sf_base`'s ask-don't-default convention at this
+confirmed. (This is `thinkwise-sf-base`'s ask-don't-default convention at this
 skill's own grain.)
 
-Follow `thinkwise_sf_base`'s "Shared conventions" section (confirm-before-mutate,
+Follow `thinkwise-sf-base`'s "Shared conventions" section (confirm-before-mutate,
 ask-don't-default) at this skill's own grain: before the first `stage_resource`/`commit_resource` call,
 propose to the user — in plain language — the target column(s) or rows to style, the condition(s) that
 will trigger each, and the colour/severity mapping for each state. Use the "Common use cases" colour
@@ -116,23 +117,23 @@ Four independent booleans, verified as such (not a combined enum):
   important record state, values needing attention before an operation. Less useful for comparative
   facts ("highest value in this list").
 - **`apply_to_edit`** — only when the formatting actively helps *while editing*: a value that becomes
-  invalid after another field changes, a threshold crossed mid-edit. every real row
-  sampled had `apply_to_edit = true` set **together with** `apply_to_grid` and `apply_to_form` — this
-  matches the platform requirement that Apply to Edit be combined with Grid and Form, not used alone.
-  Don't enable it if it would obscure the normal mandatory-field indicator or look like a hard
-  validation error while editing is still permitted. **`apply_to_edit` cannot be set directly through a
-  staged write** it comes back read-only/system-derived from `apply_to_grid` and
-  `apply_to_form`'s own values, not an independently settable flag; don't try to patch it, set the other
-  two instead and let it follow.
+  invalid after another field changes, a threshold crossed mid-edit. Apply to Edit must be combined
+  with Grid and Form, not used alone: it is editable only while `apply_to_grid` and `apply_to_form` are
+  both `true`. A new layout gets `apply_to_edit = true` by default, so send `false` explicitly when the
+  layout shouldn't show while editing. Setting Grid or Form to `false` turns it off and makes it
+  read-only; setting them back to `true` unlocks it, but the value stays `false` — set it again if it
+  should apply. Don't enable it if it
+  would obscure the normal mandatory-field indicator or look like a hard validation error while editing
+  is still permitted.
 - **`apply_to_scheduler_resource`** — colours the **resource** row/label in a Scheduler's grouping
   panel rather than an activity bar (grey out an unavailable resource, tint hierarchy levels). See
-  `thinkwise_sf_schedulers` for the Scheduler-specific evaluation rule
+  `thinkwise-sf-schedulers` for the Scheduler-specific evaluation rule
   ("first matching record per resource wins") and the HTML-formatting interaction (HTML/Multiline
   title/tooltip columns silence conditional layout, specifically font-size/strikethrough/underline).
 - **No `apply_to_card_list` or `apply_to_tree`** — confirmed this is the complete flag set, so neither
   component has its own dedicated conditional-layout surface. Whether either inherits `apply_to_grid`'s
   or `apply_to_form`'s styling at render time hasn't been independently confirmed — see
-  `thinkwise_sf_subject_components`'s Card List and Tree sections for the same open
+  `thinkwise-sf-subject-components`'s Card List and Tree sections for the same open
   question from that side, and test empirically before relying on it.
 
 Universal UI does not support conditional layouts on radio-button, signature, checkbox, or HTML
@@ -148,7 +149,7 @@ Software Factory's own colour picker, read `references/colour_and_font.md`.
 
 ## Choosing conditions
 
-Same reasoning as prefilters/tasks (see `thinkwise_sf_prefilters` for the general
+Same reasoning as prefilters/tasks (see `thinkwise-sf-prefilters` for the general
 column-vs-query framing), applied to the 18-value enum above:
 
 - **Equal to / Not equal to** — discrete states (`status = BLOCKED`, `interface_status != PROCESSED`).
@@ -185,31 +186,26 @@ For both field references and their differences from the table-level family, rea
 per-measure targeting, and the cube-specific condition shape — read
 `references/cube_level_conditional_layout.md`.
 
-## Known gap: report conditional layout
+## Report and variant conditional layout
 
 `report_conditional_layout`, `report_conditional_layout_condition`, and
-`report_variant_report_conditional_layout` all exist as real, distinct translatable object types in the
-model (confirmed via the live `transl_object.type_of_object` enum — see "Translation" below). None were
-reachable as entity sets through this connector, in any of the domains checked
-(`manage_datamodel`, `manage_control_procedures`, `manage_screentypes`, `manage_tasks`) — even the
-plain `report` entity exposed here is a bare `(model_id, branch_id, report_id)` stub with no navigation
-to parameters or conditional layouts at all. Only `report_conditional_layout_tag` (the child tag table)
-was reachable, orphaned, with no way to reach its own parent through this connector.
+`report_variant_report_conditional_layout` are distinct translatable object types (see "Translation"
+below).
 
-- **Check the connector's own domain metadata first** — a different or newer connector/domain may expose
-  reports more fully than the one checked here.
-- **If it doesn't**: report conditional layouts likely need the Software Factory's own UI directly for
-  now. Don't assume the feature doesn't exist in the platform — only that this connector's exposed
-  surface doesn't reach it. The field shape is presumably parallel to `task_conditional_layout`
-  (`report_parmtr_id` in place of `col_id`/`task_parmtr_id`) but this was **not independently verified**
-  given the access gap — confirm against the Software Factory UI or a fuller connector before assuming
-  exact field names.
+- **(Indicium · single-domain)** `report_conditional_layout` is an ordinary entity set in
+  `sf/software_development` — read its fields with `get_entity_definition` (the shape is presumably
+  parallel to `task_conditional_layout`, with `report_parmtr_id` in place of `task_parmtr_id`; don't
+  assume it).
+- **(Indicium · split-domain)** None of the three was reachable in the domains checked
+  (`sf/manage_datamodel`, `sf/manage_control_procedures`, `sf/manage_screentypes`,
+  `sf/manage_tasks`); only the orphaned `report_conditional_layout_tag` was. Search the other domains
+  with `search_domain_capabilities` before planning the report layout as a manual step in the Software
+  Factory.
 
-Similarly, **`tab_variant_conditional_layout`** (a per-table-variant override, analogous to
-`task_variant_task_conditional_layout`) exists as a translatable object type but was not found as a
-reachable entity set in `manage_screentypes` or `manage_datamodel` — table-level conditional layouts
-appear to be genuinely table-wide only through this connector, with no per-variant override surface
-found. Re-check if a variant-scoped override is specifically needed.
+The per-table-variant override is `tab_variant_conditional_layout_overview` (`show_conditional_layout`
+and the `apply_to_*` flags per variant) — reachable on single-domain; **(Indicium · split-domain)** it
+was not found in `sf/manage_screentypes` or `sf/manage_datamodel`, so search the other domains before
+treating table layouts as table-wide only. See `thinkwise-sf-variants` for the overview-row mechanics.
 
 ## Related but distinct: chart legend colour
 
@@ -222,7 +218,7 @@ chart configuration itself.
 ## Translation
 
 Every layout name is a translatable object, generated with a bracket-placeholder default like any other
-model object — see `thinkwise_sf_translations` for the full mechanics. Confirmed
+model object — see `thinkwise-sf-translations` for the full mechanics. Confirmed
 live `type_of_object` values (from the model's own enum, not guessed):
 
 | Object | `type_of_object` |
@@ -271,9 +267,13 @@ where conditional layout is the wrong tool, read `references/usage_guidance.md`.
   layout live.
 - **Set both light and dark variants of every colour** (`background_color_light`/`_dark`,
   `font_color_light`/`_dark`) — the legacy single-value fields (`background_color`, `font_id`) are
-  Windows-GUI-only and ignored by Universal UI.
-- `apply_to_edit` should be combined with `apply_to_grid` and `apply_to_form`, not enabled alone. It's
-  read-only/derived, not independently settable — set `apply_to_grid`/`apply_to_form` instead.
+  Windows-GUI-only and ignored by Universal UI. A background colour needs no `background_type` — leave
+  it out of a write (the Software Factory stores `0`), even when a layout you copy from reads back `0`.
+- **Don't add a condition twice** — `conditional_layout_condition_no` is a global identity assigned on
+  commit (not 1..n per layout), so the key won't catch a repeat; check for an identical condition first, and edit an existing one by full key.
+- `apply_to_edit` defaults to `true` on add and is editable only while `apply_to_grid` and
+  `apply_to_form` are both `true`; switching one off sets it to `false`, and switching it back on
+  doesn't restore it — re-set it.
 - **When targeting the scheduler-resource surface** (`apply_to_scheduler_resource = true` with
   `apply_to_grid`/`apply_to_form = false`), set `apply_to_scheduler_resource` to `true` *before* setting
   `apply_to_grid`/`apply_to_form` to `false`, doing it in the other order gets

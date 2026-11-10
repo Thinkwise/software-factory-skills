@@ -20,8 +20,8 @@ generation, enablement gates, business-logic variable names), see `SKILL.md` and
 | Show a numeric notification | Badge |
 | Decide whether auto-refresh is needed | Change detection |
 | Replace generated GUI/API insert/update/delete SQL | Handler |
-| Reuse a database calculation or command from >1 caller | Subroutine (see `thinkwise_sf_subroutines`) |
-| Present a reusable relational dataset | View code group (see `thinkwise_sf_views`) |
+| Reuse a database calculation or command from >1 caller | Subroutine (see `thinkwise-sf-subroutines`) |
+| Present a reusable relational dataset | View code group (see `thinkwise-sf-views`) |
 | Migrate data during a model-version deployment | Upgrade code group |
 | Seed/configure after full deployment | Manual code group |
 
@@ -73,7 +73,7 @@ irrelevant record types; disable Delete for a finalized record.
 **Avoid:** authorization — a hidden or read-only field is not a security boundary (see "Security
 guidance" below); changing data values (use Default or task/Handler logic); enforcing database
 integrity (use constraints/Trigger/Handler); coloring — use conditional layout configuration instead
-(`thinkwise_sf_conditional_layouts`).
+(`thinkwise-sf-conditional-layouts`).
 
 **Best practices:** Layout is stateless per invocation — start from modeled defaults and output only
 purposeful deviations; a field a prior call made mandatory/hidden reverts to the modeled default the
@@ -107,7 +107,7 @@ message alone means the action failed — interpret the process-action's actual 
 **Best practices:** give variables typed domains with explicit input/output mappings; model separate
 success, business-rejection, transient-error, and technical-error paths; make retryable actions
 idempotent; use the Process Flow Monitor while testing. See
-`thinkwise_sf_process_flows` for the action/step mechanics.
+`thinkwise-sf-process-flows` for the action/step mechanics.
 
 ### Trigger / Event
 **Good uses:** maintain required audit/history rows; enforce cross-row integrity a constraint can't
@@ -155,15 +155,15 @@ flow).
 
 **Best practices:** name with a clear business verb; model parameters with semantic domains and
 sensible defaults/layout; ask confirmation for consequential actions (see the confirmation guidance in
-`thinkwise_sf_build_planner` and message design in
-`thinkwise_sf_messages`); define current/selected/all-row scope explicitly; choose
+`thinkwise-sf-build-planner` and message design in
+`thinkwise-sf-messages`); define current/selected/all-row scope explicitly; choose
 await/background execution based on duration and feedback needs; make batch/external operations
 idempotent/restartable; use atomic transactions only for work that must succeed as a unit.
 
 **Precomputed-table refresh (last resort):** when a view can't reach acceptable speed even after it
 has been made pushdown-safe and indexed, a Task scheduled through a system flow can refresh a
 precomputed table instead. This gives up real-time data, so raise it with the user first. A
-`type_of_table = mqt` snapshot is the modeled alternative (see `thinkwise_sf_views`).
+`type_of_table = mqt` snapshot is the modeled alternative (see `thinkwise-sf-views`).
 
 ### Badge
 **Good uses:** open tasks/cases; overdue items; failed integrations; documents awaiting review;
@@ -219,7 +219,7 @@ and refresh results the caller expects; apply authorization/tenant boundaries to
 tables; document what bypasses the Handler.
 
 ### Subroutine
-See `thinkwise_sf_subroutines` for the full type/parameter/return/transaction/API/
+See `thinkwise-sf-subroutines` for the full type/parameter/return/transaction/API/
 security/performance/testing guidance — that skill owns this concept end to end. In short: reach for
 a subroutine when the logic is reusable across ≥2 call sites, needs to compose inside a SQL query
 (function), or needs an external API surface.
@@ -231,15 +231,15 @@ API mechanics for `VIEWS`/`DB`/`UPGRADE`/`MANUAL` already. Design-level notes fo
 
 - **Views** — define and document the row grain up front; avoid accidental many-to-many row
   multiplication from an unguarded join; preserve keys when drill-down/update semantics need them.
-  Full guidance: `thinkwise_sf_views`.
+  Full guidance: `thinkwise-sf-views`.
 - **Functions/Procedures** (`FUNCTIONS`/`TABLE_VALUED_FUNCTIONS`/`PROCEDURES`) — prefer set-based
   inline table functions over row-by-row scalar functions where the dialect allows it; declare
   null/determinism behavior accurately; keep a procedure's parameter/return/error/transaction
-  contract cohesive. See `thinkwise_sf_subroutines`.
+  contract cohesive. See `thinkwise-sf-subroutines`.
 - **Indexes** — only for a filtered/included-column/specialized index the normal data model can't
   express; validate against an actual query plan and workload, not intuition; check for redundancy
   with modeled/generated indexes first. For ordinary index design (what the SF already indexes,
-  composite vs. single-column, covering indexes, what not to index), see `thinkwise_sf_data_model`'s
+  composite vs. single-column, covering indexes, what not to index), see `thinkwise-sf-data-model`'s
   "When to add a (non-unique) index".
 - **Constraints/Checks** — the strongest choice for declarative integrity; prefer over Trigger logic
   whenever the rule is a deterministic row/reference constraint. Clean or quarantine invalid existing
@@ -248,11 +248,11 @@ API mechanics for `VIEWS`/`DB`/`UPGRADE`/`MANUAL` already. Design-level notes fo
   never promise gapless legal numbering from an ordinary sequence.
 - **CLR assemblies/functions/procedures** — only for a capability genuinely unavailable in SQL; review
   assembly trust level (`SAFE`/`EXTERNAL_ACCESS`/`UNSAFE`) and service-account/versioning implications.
-  For new external integrations, prefer `thinkwise_sf_web_connections` over a CLR
+  For new external integrations, prefer `thinkwise-sf-web-connections` over a CLR
   routine — it's generally easier to secure and operate.
 - **Smoke tests** — answer "can the generated object execute/compile in a minimal scenario," not "is
   the business rule correct." They're a deployment-confidence check, not a substitute for the unit
-  tests in `thinkwise_sf_unit_tests`.
+  tests in `thinkwise-sf-unit-tests`.
 
 ## Performance guidance by concept
 
@@ -266,7 +266,7 @@ Frequently-invoked concepts need extra care about query cost:
 | Badge | Every configured refresh interval |
 | Change detection | Before every auto-refresh poll |
 | Trigger | Every DML statement (not per row) |
-| Expression field (`expression`-type calculated column) | Every displayed row of every grid/form load — see `thinkwise_sf_data_model`'s `references/calculated_columns.md` |
+| Expression field (`expression`-type calculated column) | Every displayed row of every grid/form load — see `thinkwise-sf-data-model`'s `references/calculated_columns.md` |
 
 Practices: use set-based SQL; keep view/TVF bodies pushdown-safe (`sql_style_guide.md`); index the
 lookup/existence predicates these concepts filter on; avoid a scalar function call per row; return
@@ -339,7 +339,7 @@ suggestion as something to verify against the execution plan, and don't add an i
 | Subroutine | Parameter boundaries, return values, side effects, nulls, API contract |
 | View | Row grain, duplicate rows, null joins, authorization |
 
-Use `thinkwise_sf_unit_tests` to turn any of these into actual modeled unit tests —
+Use `thinkwise-sf-unit-tests` to turn any of these into actual modeled unit tests —
 that skill owns the propose → confirm → build workflow and the mock-data mechanics.
 
 ## Final review checklist

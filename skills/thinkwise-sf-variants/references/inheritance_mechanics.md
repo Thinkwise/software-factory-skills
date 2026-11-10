@@ -1,6 +1,6 @@
 # Variant inheritance mechanics
 
-Loaded on demand from `thinkwise_sf_variants`.
+Loaded on demand from `thinkwise-sf-variants`.
 
 ## Inheritance — the mechanic that actually matters
 
@@ -15,12 +15,18 @@ Plain scalar/flag settings on `tab_variant_overview` itself (`main_screen_type_i
 `allow_add`/`allow_update`/`allow_delete`/`allow_copy`, `max_no_of_records`,
 `no_of_fields_locked`, `no_of_cols_in_form`, `badge_interval`, and similar) can each be changed on
 the variant independently — changing one has no effect on any other, and every one of them
-continues to silently track the default table's current value **until the variant's own value is
-set to something different**. There is no explicit "activate this override" step for these.
+continues to silently track the default table's current value until the variant overrides it.
+**Most of them are activated by an `apply_*` flag on `tab_variant`** (`apply_main_screen_type_id`,
+`apply_detail_screen_type_id`, `apply_zoom_screen_type_id`, `apply_popup_screen_type_id`,
+`apply_icon`, `apply_page_size`, `apply_badge_interval`, `apply_max_no_of_records`,
+`apply_no_of_fields_locked`, `apply_no_of_cols_in_form`, `apply_field_width`, …): the value only takes
+effect while its flag is `true`. The value itself is accepted with the flag off (it just does
+nothing), so make sure the flag ends up on — in either order — and read both back. The CRUD/behaviour booleans
+(`allow_add`, `allow_update`, …) have no flag — their value is the override.
 
 **Only override `icon_id` (here, and on the equivalent `task_variant_overview`/
 `report_variant_overview` fields below) when the variant's outcome or context genuinely differs from
-the default** — per `thinkwise_sf_icons`. If a variant just prefills different
+the default** — per `thinkwise-sf-icons`. If a variant just prefills different
 parameters for the same underlying object, leave `icon_id` tracking the default and let translation
 carry the distinction instead; don't set an override as a matter of course just because the field is
 there.
@@ -46,7 +52,7 @@ value per row: grid columns, form columns, card list, tree, details, filter, sea
 `tab_variant_overview` that plain field-level settings do not. This skill covers the lifecycle
 mechanic (Setup/Reset/inheritance) generically across all of them; for what each field in the
 grid/form/card-list/tree sets actually configures and renders, see
-`thinkwise_sf_subject_components`:
+`thinkwise-sf-subject-components`:
 
 | Setup task | What it snapshots |
 |---|---|
@@ -70,11 +76,14 @@ row, set `parent_col_id = 'parent_department_id'`) — after that the tree rende
 verify `tab_variant_tree_overview` after running the Setup task for a hierarchical tree rather than
 assuming the wizard wired the hierarchy end-to-end. **Note the direction here is inverted from the base
 table's own `col.parent_col_id`**, which lives on the FK column and points *at* the PK column (the
-opposite row/value pairing) — see `thinkwise_sf_subject_components` for the base-table
+opposite row/value pairing) — see `thinkwise-sf-subject-components` for the base-table
 mechanism and this asymmetry side by side.
 
 Before Setup is called for a given set, that set has no independent identity of its own — the
-variant is purely following the default's current grid/form/etc. Calling Setup takes what is
+variant is purely following the default's current grid/form/etc. **Don't edit a row of a set that
+hasn't been Set up:** the edit snapshots every row of the set into the variant, and can change rows
+you didn't touch (a hidden PK row came back visible, `type_of_col` 3 → 1). Run Setup first, then
+edit, then re-read the set. Calling Setup takes what is
 effectively a snapshot: from that point, the set stops automatically absorbing changes made to the
 default. If a column is later added to the default table, an already-snapshotted grid or form on the
 variant will generally **not** pick it up automatically — it stays hidden/absent until someone
@@ -106,7 +115,6 @@ side by side (e.g. `main_screen_type_id`: variant `form_detail_no_action` vs. de
 `allow_add`: variant `False` vs. default `True`). Settings that still match the default —
 verified: an unchanged `detail_screen_type_id` simply doesn't appear in the result at all. This is
 the mechanism behind the platform's "Compare a variant to its default" screen, and it's the
-authoritative way to audit a table variant's field-level overrides, since `tab_variant_overview`
-itself carries no per-field "is this overridden" indicator the way `tab_variant_col_overview` does
-with `default_type_of_col`. Query it after any bulk copy, before a release, and whenever a variant
+authoritative way to audit a table variant's field-level overrides, since only the fields with an
+`apply_*` flag on `tab_variant` show their override state directly. Query it after any bulk copy, before a release, and whenever a variant
 looks like it's drifted further from its stated purpose than intended.

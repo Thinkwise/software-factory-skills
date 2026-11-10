@@ -20,8 +20,8 @@ version before promising a feature.
 |---|---|
 | Device/machine/other system pushes events (telemetry, status, results) | Subscription → system flow |
 | Application sends a command or event to devices/other systems | Message + Publish message action |
-| Request/response with an HTTP API | `thinkwise_sf_web_connections` |
-| Periodically fetch data | Scheduled system flow (see `thinkwise_sf_process_flows`) |
+| Request/response with an HTTP API | `thinkwise-sf-web-connections` |
+| Periodically fetch data | Scheduled system flow (see `thinkwise-sf-process-flows`) |
 
 ## Entity map
 
@@ -32,7 +32,7 @@ of its parent. Several are only addable through an `_overview` entity-set varian
 |---|---|---|---|
 | Broker | `message_broker` | `branch` | `message_protocol` mqtt; adding it auto-creates `message_broker_mqtt` (connection settings) — edit that row, don't add one |
 | Message | `message_broker_message_mqtt_overview` | `message_broker` | Topic, payload, QoS, retain, expiry, content type, payload format, reply expected |
-| Message input parameter | `message_broker_message_mqtt_input_parmtr_overview` | the message overview row | Name, default value, pre-processing |
+| Message input parameter | `message_broker_message_mqtt_input_parmtr_overview` | the message overview row | Name, default value, pre-processing — send `pre_processing` (0 = none) on the add although it isn't marked mandatory; leaving it out fails with 422 (null insert) |
 | Subscription | `message_broker_subscription_mqtt_overview` | `message_broker` | `process_flow_id`, `mqtt_topic_filter`, `max_qos_level` in one record |
 | Variable mapping | `message_broker_subscription_mapping_mqtt` | the subscription overview row | One row per process variable |
 | Publish action | `process_action` type `950` (`publish_message`) | `process_flow` | `message_broker_id`, `message_broker_message_id` |
@@ -55,12 +55,12 @@ Before creating anything, agree with the user on the **MQTT contract** — it ou
 
 1. Broker (connection settings on the auto-created `message_broker_mqtt` row).
 2. Messages and their input parameters.
-3. Tables/tasks that store or prepare the data (task logic per `thinkwise_sf_tasks` /
-   `thinkwise_sf_control_procedures`).
+3. Tables/tasks that store or prepare the data (task logic per `thinkwise-sf-tasks` /
+   `thinkwise-sf-control-procedures`).
 4. System flows with their **process variables first**, then the actions (Execute system task, …).
 5. Subscriptions, then their variable mappings.
 6. User flows that publish: a task or table task as starting point → Publish message → stop.
-7. Map the Publish message inputs (Software Factory UI, see gotchas) and the task outputs.
+7. Map the Publish message inputs and the task outputs.
 8. Generate, validate, deploy, sync to IAM, enable subscriptions in Indicium, restart.
 
 ## Publishing
@@ -91,18 +91,19 @@ copy.
 
 ## Known gotchas
 
-- **Publish message inputs can't be mapped through the API.** The pre-seeded rows in
-  `process_action_modeler_message_broker_message_input` reject edits (even a single-row read by key
-  fails). Build everything else, then tell the user to map each input to its process variable in the
-  Software Factory UI. Unmapped inputs silently fall back to their default value.
+- **Map every Publish message input explicitly.** Edit each pre-seeded
+  `process_action_modeler_message_broker_message_input` row (see `references/publishing.md`). Unmapped
+  inputs silently fall back to their default value.
 - **Subscriptions are off by default in Indicium.** Without `Agent:MessageBroker:MQTT:SubscriptionsEnabled
   = true` Indicium still publishes but never processes incoming messages, and logs nothing about it.
 - **JSON `true`/`false` can't be mapped into bit or numeric process variables** — the flow fails with
   "invalid value for its '<variable>' parameter". Map such fields to a short varchar domain and
   convert in SQL.
 - **Client ID prefix is at most 5 characters** — Indicium appends 18 characters and MQTT allows 23.
+  Staging accepts a longer prefix, so check the length yourself.
 - **A subscription's process flow must be a system flow**, and its variables must exist before
   mappings can reference them; the flow becomes read-only on the subscription once mappings exist.
+  Staging accepts a non-system flow — confirm the flow is a system flow (`is_system_flow`) yourself.
 - **Placeholders are inserted as text.** Quote them in a JSON payload template (`"x":"{x}"`) so a null
   or empty value still yields valid JSON, and make the receiver accept quoted numbers.
 - **Broker secrets are not synced** between the Software Factory and IAM — set them per environment.
@@ -120,7 +121,8 @@ model objects; check for collisions first.
 - Topic/payload contract agreed with the user, including nullable fields and retained topics.
 - Process variables created before actions and mappings; every task output mapped explicitly.
 - Boolean JSON fields mapped to a text domain, converted in the task.
-- User told to map the Publish message inputs in the Software Factory UI.
+- Every Publish message input mapped; client ID prefix ≤ 5 characters; every subscribed flow is a
+  system flow.
 - After deploy: IAM synced, subscriptions enabled on exactly one Indicium instance, Indicium restarted.
 
 ## Sources

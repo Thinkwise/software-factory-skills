@@ -81,10 +81,11 @@ scheduled work:
 1. **`msg`**: `planning_run_will_overwrite_manual_scheduling`, Warning, Popup, no abort (the choice
    itself decides whether to proceed, not an automatic abort).
 2. **`msg_option`s**:
-   - `msg_option_id = 'run_anyway'`, `response_type = true`, `status_code = 0` — deliberately *not*
+   - `msg_option_id = 'run_anyway'`, `response_type = true` (→ status code `0`, derived by the Software
+     Factory — don't send it) — deliberately *not*
      reusing the shared `yes` option id, since this message needs its own wording ("Run anyway"), not
      the generic shared "Yes" label.
-   - `msg_option_id = 'cancel_run'`, `response_type = false`, `status_code = -1`.
+   - `msg_option_id = 'cancel_run'`, `response_type = false` (→ status code `-1`, derived).
 3. **Process flow**: a `show_msg` action (`process_action_type = 350`) with `msg_id` set to the message
    above. Because there are exactly one affirmative and one negative option here, the plain
    `last_process_action_successful = successful/not_successful` step condition on the two outgoing
@@ -97,7 +98,7 @@ scheduled work:
 - **Popup overuse** — a Default/Layout firing on every keystroke pops a message; the user can't type
   without dismissing dialogs. Fix: move the feedback into field visibility/mandatory state instead of a
   message, or gate the message so it fires once per meaningful change (compare against
-  `@cursor_from_col_id`, see `thinkwise_sf_subroutines`'s cross-referenced Default
+  `@cursor_from_col_id`, see `thinkwise-sf-subroutines`'s cross-referenced Default
   guidance).
 - **Message storms** — a bulk task validates row-by-row and pops one dialog per failing row. Fix: check
   `task.popup_for_each_row` is `false`, aggregate the failures into one summary message with a count and
@@ -129,7 +130,7 @@ scheduled work:
 - **Vague confirmation** — "Are you sure?" on a delete task. Fix: "Delete order {0}? This cannot be
   undone." names the object and the consequence.
 - **Presentation inside reusable logic** — a `subroutine` (see
-  `thinkwise_sf_subroutines`) that calls `tsf_send_message` unconditionally as part of its
+  `thinkwise-sf-subroutines`) that calls `tsf_send_message` unconditionally as part of its
   own body, making it awkward to call from an API or a background job where no popup can ever be seen.
   Fix: return a status/result from the subroutine and let the *caller* (a Task/Handler with a real UI
   context) decide whether and how to present it.

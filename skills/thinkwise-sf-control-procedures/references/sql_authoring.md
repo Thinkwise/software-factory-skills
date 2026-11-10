@@ -1,6 +1,6 @@
 # Control procedure SQL authoring — dialects, style, dynamic model code, calculated columns
 
-Loaded on demand from `thinkwise_sf_control_procedures`.
+Loaded on demand from `thinkwise-sf-control-procedures`.
 
 ## The comment-block header — how generated code round-trips back to a template
 

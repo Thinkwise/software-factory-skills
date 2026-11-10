@@ -1,11 +1,14 @@
 ---
 name: thinkwise-mcp-install
-description: Add and authenticate a custom HTTP MCP connector in Claude Code end-to-end, including OAuth discovery and scope pinning, asking the user step by step rather than assuming any config value. Use when asked to add/install/set up/register a new MCP connector or server in Claude Code, especially an Indicium/sf_mcp-style OAuth-protected HTTP MCP endpoint.
+description: Claude Code only — add and authenticate a custom HTTP MCP connector in Claude Code end-to-end (claude mcp add, ~/.claude.json), including OAuth discovery and scope pinning, asking the user step by step rather than assuming any config value. Use when asked to add/install/set up/register a new MCP connector or server in Claude Code, especially an OAuth-protected Indicium MCP endpoint. Not for claude.ai/ThinkIT, where connectors are added in claude.ai's connector settings.
 ---
 
 install an mcp connector using the following instructions:
 
 # Install an MCP connector in Claude Code
+
+> **(Claude Code) only.** In claude.ai/ThinkIT, connectors are added through claude.ai's connector
+> settings instead; none of the steps below apply there.
 
 Set up and authenticate a custom MCP connector in Claude Code. Ask the
 questions in Step 0 one at a time before doing anything — do not assume
@@ -16,7 +19,7 @@ defaults for values the user hasn't given you, except where marked "default."
 Ask, in order, waiting for each answer before asking the next:
 
 1. **Server name** — the alias to register this connector under in Claude
-   Code (e.g. `sf_mcp`). This name must be used consistently in every step
+   Code (e.g. `<connector-name>`). This name must be used consistently in every step
    below (add, get, config lookup, `/mcp` selection) — do not let the add
    command use a different name than later steps reference.
 2. **MCP endpoint URL** — the full transport URL (e.g.

@@ -1,6 +1,6 @@
 # Writing and assigning a view's SELECT code (Template method)
 
-Loaded on demand from `thinkwise_sf_views`.
+Loaded on demand from `thinkwise-sf-views`.
 
 ## Writing and assigning code to a view (Template method)
 
@@ -21,15 +21,17 @@ framework's `VIEWS`-code-group meta control procedure → your own `control_proc
    generated against a SQL-Server-only one — every write along the way still reports success either
    way, so this has to be checked up front, not diagnosed after the fact.
 2. **Model the view's columns first** (above) — order, primary key, domains. The `SELECT` written in
-   step 5 must produce exactly this column list, in this order, with matching aliases.
+   step 5 must produce exactly this column list (calculated columns excluded), in this order — the
+   generated column list maps by position, so aliases don't rescue a wrong order.
 3. **Make sure the view's structural program object exists.** A brand-new view has no generated
    program objects yet. Run **Generate code group** for the `VIEWS` code group (`task_generate_code_grp`,
    bound to `control_proc`, addressable by just `(model_id, branch_id, control_proc_id)` — use any
-   control procedure already in `VIEWS`, e.g. the framework's own `pg_views`, since your own control
+   control procedure already in `VIEWS`, e.g. the framework's own `sql_views` (SQL Server) or `pg_views`
+   (PostgreSQL), since your own control
    procedure for this view doesn't exist yet at this point) once so the framework's `view_<tab_id>`
    program object shell exists — nothing can be attached to it before that. **This only creates the
    placeholder row — it does not generate any code yet**; see step 6 and the
-   `thinkwise_sf_control_procedures` skill's "Actually generating code" section
+   `thinkwise-sf-control-procedures` skill's "Actually generating code" section
    for why that's a second, separate task. Multi-dialect models: this creates one `prog_object` row per
    enabled `rdbms_type` for the same `tab_id` — expect (and plan to fill) all of them, not just one.
 4. **Business Logic → Functionality → Control procedures → New** (`control_proc` entity):
@@ -80,7 +82,7 @@ framework's `VIEWS`-code-group meta control procedure → your own `control_proc
      at the matching dialect-specific `template_id` from step 5 — never point two platforms' rows at
      the same template.
 7. **Generate the actual code — two distinct tasks, don't conflate them.** See the
-   `thinkwise_sf_control_procedures` skill's "Actually generating code" section
+   `thinkwise-sf-control-procedures` skill's "Actually generating code" section
    for the full generate-code-group vs. generate-object-code walkthrough, including the
    placeholder/re-run gotcha (a brand-new static assignment needs `task_generate_code_grp` re-run
    against *your* control procedure, not just the framework one from step 3, or the generated body
@@ -98,10 +100,18 @@ framework's `VIEWS`-code-group meta control procedure → your own `control_proc
    - **Multi-dialect: repeat generation and the read-back for every `rdbms_type` in
      `branch_rdbms_type`**, not just the first one that works. Query
      `/prog_object?$filter=... and tab_id eq '<tab>'&$select=rdbms_type,generated_code_stale` and
-     confirm `generated_code_stale = false` for all of them before considering the view done.
+     confirm `generated_code_stale = false` for all of them before considering the view done. That
+     takes the queued `task_add_job_to_generate_object_code` job; when jobs are out of scope, stop
+     after the template is assigned and report "template assigned, object code not generated —
+     `generated_code_stale` still true" rather than calling the view done.
+   - Generating `VIEWS` creates only `view_<tab>`. `default_<tab>` placeholders (for the view and for
+     every table, including those with `use_defaults = false`) appear once a DEFAULTS-group control
+     procedure's code group is generated. They're harmless; if the view is deleted
+     later, re-run those code groups too so the placeholders go away.
    - This is as far as this skill goes — deploying the generated code to a database is a separate step
      outside its scope, and `prog_object` isn't directly writable through this API either — don't
      assume a successful generate means deploy is also possible; confirm with the user first.
-8. **Validate / code review as normal** — move `development_status` through review, attach unit
-   tests if the view feeds anything business-critical (a report, a financial calculation, a process
+8. **Validate / code review as normal** — move `development_status` through review (see
+   `thinkwise-sf-control-procedures`, "Moving a procedure past review", for what the write API does
+   and doesn't allow there), attach unit tests if the view feeds anything business-critical (a report, a financial calculation, a process
    flow decision).

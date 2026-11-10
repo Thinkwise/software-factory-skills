@@ -110,7 +110,7 @@ Beyond the decomposition itself, an integration subroutine needs:
   back everything? Decide and document it; don't leave it implicit in whatever the loop happens to do.
 - Protection of credentials and payloads in any logging this subroutine does.
 
-For a brand-new external integration, weigh a web connection (`thinkwise_sf_web_connections`)
+For a brand-new external integration, weigh a web connection (`thinkwise-sf-web-connections`)
 or a process-flow connector action before reaching for a database-side integration subroutine — those
 are usually easier to operate, monitor, and retry than logic buried inside the database.
 

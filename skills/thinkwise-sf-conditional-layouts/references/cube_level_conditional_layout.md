@@ -15,15 +15,16 @@ absent) — so one cube conditional layout is exactly one condition.
 | `background_color_1` / `background_color_2` | Gradient endpoints (legacy, non-themed `Edm.Int32`) |
 | `background_color_light` / `background_color_dark` | Universal UI themed background (flat, non-gradient) |
 | `font_color_light` / `font_color_dark`, `bold`/`italic`/`underline`/`strikethrough`, `font_size` | Same styling vocabulary as the other families |
-| `image_id` / `image` | A cube-layout-only capability — attach an icon/image, not just colour/text styling. `image_id` is a foreign key into the same shared `icon` repository used everywhere else (confirmed live via its `icon.icon_look_up` navigation) despite the "image" naming — pick a suitable icon per `thinkwise_sf_icons`'s status vocabulary (unique silhouette per condition, never color alone) rather than leaving it unset, and ask the user rather than guess if nothing in the repository fits. |
+| `image_id` / `image` | A cube-layout-only capability — attach an icon/image, not just colour/text styling. `image_id` is a foreign key into the same shared `icon` repository used everywhere else (confirmed live via its `icon.icon_look_up` navigation) despite the "image" naming — pick a suitable icon per `thinkwise-sf-icons`'s status vocabulary (unique silhouette per condition, never color alone) rather than leaving it unset, and ask the user rather than guess if nothing in the repository fits. |
 
 Prefer threshold formatting (negative margin, variance against budget, values outside tolerance, service
 level below target) over assigning a different colour per category — the gradient support exists
 specifically for continuous-value emphasis (heatmap-style), not for distinguishing discrete categories.
 
-**Known gap, verified**: `cube_field_conditional_layout`/`cube_field_total` — an older, `cube_field`-
-scoped pair distinct from `cube_view_field_conditional_layout`/`cube_view_field_total` — exist as real
-translatable object types in the model but were not reachable as entity sets through this connector.
+**Legacy pair**: `cube_field_conditional_layout`/`cube_field_total` — an older, `cube_field`-scoped
+pair distinct from `cube_view_field_conditional_layout`/`cube_view_field_total` — exist as
+translatable object types; **(Indicium · split-domain)** they were not reachable as entity sets in the
+cube domain checked.
 Treat `cube_view_field_*` as the current, Universal-UI-facing mechanism; if a model surfaces the legacy
 `cube_field_*` pair, that's the older/Windows-GUI-only cube object, not a distinct feature to build new
 work against.

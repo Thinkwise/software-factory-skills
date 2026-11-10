@@ -15,12 +15,17 @@ of guessing from the object's own name.
 |---|---|---|---|
 | A table/view's own name (and its plural, same row) | `tab` | 0 | live-confirmed |
 | A column's label | `col` | 1 | live-confirmed; shared across tables with the same `col_id` — see Naming below |
-| A column/`task_parmtr`/`report_parmtr`'s `form_next_grp_label` / `next_tab_label` (group or collapsible-section header) | `tab_label`, **not** the parent's own type | 33 | live-confirmed trap — see below |
+| A column/`task_parmtr`/`report_parmtr`'s `form_next_grp_label` / `next_tab_label` (group or collapsible-section header) | `tab_label`, **not** the parent's own type | 33 | live-confirmed trap — see below; a new label's row only appears at definition generation (reported on SF 2026.2) |
 | A domain element (dropdown/enum value label) | `dom_elemnt` | 2 | live-confirmed |
+| A domain input constraint's message (shown when input breaks it) | — (filter on the value) | 977 | live-confirmed; left behind as an orphan when the constraint is deleted |
+| A message's text | — (filter on the value) | 4 | live-confirmed; only `transl` holds text |
+| A message option's button label | — (filter on the value) | 496 | live-confirmed; keyed by the bare `msg_option_id` and **shared by every message using that id** — see `thinkwise-sf-messages` |
+| A reference's role name | — (filter on the value) | 7 | confirmed in builds; read an existing row first to see which text fields it carries |
 | A task's own name | `task` | 11 | live-confirmed |
 | A task parameter's label | `task_parmtr` | 32 | live-confirmed |
 | A report's own name | `report` | 10 | live-confirmed |
 | A report parameter's label | `report_parmtr` | 31 | enum-confirmed |
+| A table report group's name | — (filter on the value) | 17 | live-confirmed |
 | A control procedure's own name/description | `control_proc` | 46 | live-confirmed |
 | A layout control / spacer / static label on a form | `gui_object` | 13 | live-confirmed; a literal single space can be an intentional blank, not untranslated — see below |
 | A top-level menu's own name | `menu` | 294 | live-confirmed structurally (dedicated nav property); content not independently re-verified |
@@ -30,20 +35,27 @@ of guessing from the object's own name.
 | A tile-style menu **item** | no working path — same pattern as list-bar items | 84 exists but is inert | **live-confirmed this session** |
 | A module/treeview group header | `module_grp` — its **own** type, no redirect | 6 | **live-confirmed this session** (id `control`) — does *not* share the `list_bar_grp` trap |
 | A table-bound task's label (as shown on that table's screen) | no own type — shows the parent `task`'s (11) translation | 110 exists but has no translation of its own | **live-confirmed this session** — `tab_task` has no `transl_object` navigation property at all |
-| A role's own name/description | `role` | 707 | enum-confirmed only; `role` entity not exposed by any domain reachable this session, so UI consumption is unverified — confirm live before trusting |
-| A screen type's own name | `screen_type` | 164 | enum-confirmed |
-| A tab variant's own name | `tab_variant` | 281 | enum-confirmed |
+| A role's own name/description | `role` | 707 | live-confirmed: adding a role creates its `[bracketed]` placeholder at 707 |
+| A screen type's own name | `screen_type` | 164 | live-confirmed |
+| A tab page label in a screen type (`TabPage` component) | — (filter on the value) | 229 | live-confirmed; keyed by the label id and shared across screen types |
+| A tab variant's own name | `tab_variant` | 281 | live-confirmed; reported on SF 2026.2 to appear only at definition generation, not when the variant is added |
 | A scheduler view's own name | `scheduler_view` | 971 | enum-confirmed |
 | A conditional layout's own name | `conditional_layout` | 44 | enum-confirmed |
 | A help index entry | `help_index` | 20 | enum-confirmed |
-| A process flow's own name | `process_flow` | 29 | enum-confirmed |
+| A process flow's own name | `process_flow` | 29 | live-confirmed; left behind as an orphan when the flow is deleted |
+| A process action's own name | — (filter on the value) | 30 | live-confirmed; left behind as an orphan when the flow is deleted |
 | A cube view's own name | `cube_view` | 26 | **live-confirmed this session** |
 | A cube field's own label (dimension or value) | `cube_field` | 25 | **live-confirmed this session; separate from the underlying column's own translation** — see trap below |
 
 "Enum-confirmed" means the value is correct per a live fetch of the `type_of_object` enum itself,
 but this session didn't independently verify which type the UI actually renders from — apply the
 same bare-id, multi-type diagnostic used to catch the `list_bar_grp`/`tab_label` traps before
-trusting a write to one of these rows blindly.
+trusting a write to one of these rows blindly. A "—" in the second column means the value is known
+from live records but its enum label wasn't read; filter on the number.
+
+**Some objects get no translation object at all** — don't search for one: `tile` (it shows its
+linked object's translation, see below), `tab_report`, `indx`, `subroutine`, `tab_task_parmtr`, and a
+check constraint unless its `generate_transl_object` is set.
 
 **A single column can own more than one `transl_object`, and they are not all the same
 `type_of_object`.** `transl_object`'s navigation properties `detail_ref_transl_object_col`,
@@ -125,4 +137,6 @@ old id (e.g. the field's use elsewhere in the cube's views) were correctly casca
 the old id's `transl_object`/`transl_object_transl` rows were left behind untouched — an orphan under
 a name nothing points to anymore. After renaming any translatable object through its dedicated rename
 task, check for and delete the old id's translation rows rather than assuming the rename task handled
-them.
+them. **Deletes leave orphans too**: a deleted input constraint keeps its message's row (977), and a
+deleted process flow keeps its own (29) and its actions' (30). `task_delete_unused_transl_objects`
+sweeps all of these branch-wide — see `references/language_administration.md`.

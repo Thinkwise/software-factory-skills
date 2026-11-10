@@ -10,12 +10,11 @@ serving one or more platforms via `menu_platform`) → **group** (`list_bar_grp`
 `module_grp` — a labelled section) → **item** (`list_bar_item` / `tile` — points at exactly one
 table, table variant, report, report variant, task, or task variant) → per-role visibility
 (`role_menu_overview` / `role_list_bar_grp_overview` / `role_list_bar_item_overview` /
-`role_tile_grp_overview` / `role_tile_overview`). Every entity, field, enum value, and task signature
-below was confirmed live against a real connected model (`sf/manage_menu` domain, model `INSIGHTS`) —
-not guessed from documentation.
+`role_tile_grp_overview` / `role_tile_overview`).
 
 Apply this whenever an MCP connector with Software Factory access is used to create, extend, reorganize,
-or secure a menu.
+or secure a menu. Domain: split-domain instances `sf/manage_menu`; single-domain
+`sf/software_development`; otherwise find it with `search_domain_capabilities`.
 
 ## Golden rule: don't decide the structure silently — ask
 
@@ -54,7 +53,7 @@ at once — menu, group, item(s), type, naming, `order_no`, and role visibility.
 to the user and get their explicit confirmation on it as a package before creating anything. Only
 after that confirmation move on to the "Creating things" mechanics below. If the user's answer changes
 one part of the plan, re-confirm the updated plan as a whole rather than resuming piecemeal. This is
-the `thinkwise_sf_base` "Confirm-before-mutate" convention applied at this skill's
+the `thinkwise-sf-base` "Confirm-before-mutate" convention applied at this skill's
 own grain; it isn't superseded by anything below about these entities' write mechanics.
 
 ## What belongs in the menu at all
@@ -70,6 +69,8 @@ Quick smell test — lean toward **not** a menu item when it's:
 - a task or report that requires a current record to make sense,
 - a one-off migration/diagnostic/seed-data utility,
 - a near-duplicate of something already reachable elsewhere with no distinct audience benefit.
+
+A task opened from a menu item or tile runs without a selected row — see `thinkwise-sf-tasks` for what its parameters need.
 
 For the full in/out criteria, organizing-principle choice, naming, ordering, group-size heuristics,
 contextual-navigation alternatives, and anti-patterns, see
@@ -92,8 +93,8 @@ audience, the item count, and (verified below) how well the API actually support
 | Type | Verdict | Use it for | Why |
 |---|---|---|---|
 | **List bar** (`list_bar`) | **Default** | Internal, back-office applications — several groups, each holding several-to-many items. | Dense, flat, well-supported API (see task reference below). Start here unless one of the others has a specific reason to win. |
-| **Tile** (`tile`) | **Situational** | A small, curated set of entry points (roughly a dozen, not dozens); customer-facing portals/self-service where the audience isn't trained on the app; handheld/touch/kiosk; a landing "front door" before a list-bar back office. | `tile_size` (enum: `small`/`medium`/`wide`/`large`) gives visual prominence, but tiles don't compress — past a handful you're scrolling a wall of squares. |
-| **Tree** (`tree`) | **Avoid** | Only a subject with genuine multi-level hierarchy that list bar/tile's flat groups truly can't express, and even then treat it as a last resort. | Legacy from the Windows/Web GUIs; Thinkwise has said Universal UI is bringing list bar "groups inside parent groups" nesting, closing tree's one advantage. **Also a real API gap in this domain**: `module_grp` has zero bound tasks (no create/rename/delete helpers — list bar and tile each have full sets, see below), and there is no `module_item`-equivalent entity exposed in this domain at all — tree's individual menu items aren't reachable through this API the way list bar/tile items are. If a tree menu already exists, treat it as migration debt toward list bar, not a foundation to keep building on. |
+| **Tile** (`tile`) | **Situational** | A small, curated set of entry points (roughly a dozen, not dozens); customer-facing portals/self-service where the audience isn't trained on the app; handheld/touch/kiosk; a landing "front door" before a list-bar back office. | `tile_size` (enum: `small`=0/`medium`=1/`wide`=2/`large`=3) gives visual prominence, but tiles don't compress — past a handful you're scrolling a wall of squares. |
+| **Tree** (`tree`) | **Avoid** | Only a subject with genuine multi-level hierarchy that list bar/tile's flat groups truly can't express, and even then treat it as a last resort. | Legacy from the Windows/Web GUIs; Thinkwise has said Universal UI is bringing list bar "groups inside parent groups" nesting, closing tree's one advantage. **Also thinner API support**: `module_grp` has zero bound tasks (no create/rename/delete helpers — list bar and tile each have full sets, see below); **(Indicium · split-domain)** `sf/manage_menu` exposes no `module_item` entity at all, so tree items aren't reachable there (single-domain does expose `module_item`). If a tree menu already exists, treat it as migration debt toward list bar, not a foundation to keep building on. |
 
 ## New menu, or the existing one?
 
@@ -144,7 +145,11 @@ the one case `module_grp`'s nested groups earn their keep, weighed against tree'
 
 ## Placing items
 
-- **One item per target** — don't overload one item for two purposes; add a second item instead.
+- **One item per target** — don't overload one item for two purposes, and don't add a second item
+  that opens the same table/task/report in the same group: an item shows its target's caption, so the
+  menu shows the same name twice. A second purpose gets its own variant (with its own caption) and an
+  item that opens that variant. In another group, a second item to the same target can be a
+  deliberate second way in.
 - **Order by workflow, not alphabet** — see `order_no` below.
 - **Reach for menu search before more structure.** Once a menu holds many items, turn on
   `menu.show_filter` rather than inventing another layer of grouping to compensate.
@@ -180,30 +185,34 @@ writing to `rights_icon` itself.
 **This is why "different roles need different menus" is almost never a real reason to create a second
 menu** — set the grant at whichever level (menu/group/item) matches what should actually be hidden.
 
-The same edit-the-existing-row pattern applies to object rights a role needs next to its menu:
+**A granted item only works with everything above and behind it.** A list bar item reaches a role only
+when the role also holds its group, its menu, and the right on what it opens (read on the table, the
+task, or the report); a tile needs its menu, tile group, the tile itself, and its target. Keep roles
+small — one responsibility per role, mapped to user groups in IAM; the Software Factory flags roles
+holding many menu items with the `val_role_menu_items` validation.
 
-- **Tables/views** (`role_tab_overview`): granting update also switches on grid edit mode, import and
-  mass update on the same row — reset those in the same write unless they are wanted.
-- **Table tasks need two grants**: the task itself (`role_task_overview`) **and** the table binding
-  (`role_tab_task_overview`); the button only becomes available once both are granted.
-- **User process flows** a button starts (`role_process_flow_overview`) and **subroutines** called from
-  the GUI each need their own grant; system flows started by schedules or subscriptions don't.
+The object rights next to the menu (table, column, table-task, parameter, process-flow and subroutine
+rights, and the side effects of `update_granted`) are `thinkwise-sf-roles`' territory — read it before
+granting them. System flows started by schedules or subscriptions need no role grant.
 
 ## Creating menus, groups, items, and role rights
 
 Call `get_entity_definition` on `menu`/`list_bar_grp`/`list_bar_item` (and the `role_*_overview`
-siblings) for fields, keys and bound tasks — batch them in one call, since the object graph is known
-up front. What the metadata won't tell you:
+siblings) for fields, keys and bound tasks — batch them when the object graph is known up front, but
+request any entity with an `unlink_generated_object` task (most of these) on its own when the batch
+answer would get too large (see `thinkwise-sf-base`'s token-bloat warning). What the metadata won't tell you:
 
 - **No bound "create" task exists for `menu`** — create it as a plain record with `menu_id` and
-  `menu_type` set.
-- **`menu_platform` can come back `readonly` at create** with a version-dependent default — `8`
-  (`universal`) on some models, `1` (`windows`) on others. Re-read it after commit; if it isn't the
-  platform the user runs, say it has to be changed in the Software Factory UI.
+  `menu_type` only. Confirm `menu_type` first: it was still editable on an edit of a menu without
+  groups (verified on SF 2026.2), but is reported to lock once the menu has groups.
+- **`menu_platform` can come back `readonly` at create** with a model- and version-dependent default
+  (`8` = `universal` in one model, `1` = `windows` in another) — don't assume either. Re-read it after
+  commit; if it isn't the platform the user runs, say it has to be changed in the Software Factory UI.
 - **`list_bar_item` has no icon field** — a menu item shows its target table's icon, so set the icon on
-  the table (see `thinkwise_sf_icons`).
-- **If a bare add is rejected, stage the `menu` as a dependent record of `branch`**
-  (`parent_entity_set: "branch"`, `parent_key: {model_id, branch_id}`).
+  the table (see `thinkwise-sf-icons`).
+- **Stage the `menu` as a dependent record of `branch`** (`parent_entity_set: "branch"`,
+  `parent_key: {model_id, branch_id}`). `(Indicium · single-domain)` a bare add is always refused;
+  elsewhere try it if you like, but the branch route works on both.
 - **`task_copy_menu` clones a whole group/item structure** — the fast start for a new platform
   variant of a menu you already have.
 
@@ -222,13 +231,16 @@ not per menu) — see `references/menu_translation_notes.md` before translating 
   (list bar / tile / tree) and why, and get the user's confirmation first, even when the fit seems
   obvious.
 - Default to **list bar**; reach for **tile** only for small item counts or customer-facing/touch
-  contexts; treat **tree** as something to migrate away from, not build on — it has real, verified API
-  gaps (no bound tasks on `module_grp`, no exposed item entity) on top of the UX case against it.
-- The bound create-item tasks (`task_create_list_bar_item`/`task_create_tile`) can fail on commit with
-  a mandatory-field error on `menu_item_type` that they expose no way to set — create items as a
-  dependent-record add under the parent group instead; it works reliably and sets every field
-  (description, target, order) in one step. Creating a `list_bar_grp`/`tile_grp` **does** require an ID
-  up front.
+  contexts; treat **tree** as something to migrate away from, not build on — it has thinner API
+  support (no bound tasks on `module_grp`) on top of the UX case against it.
+- Don't use the bound create-item tasks (`task_create_list_bar_item` can fail on commit on
+  `menu_item_type`; `task_create_tile` answered `403`). Add a `list_bar_item` under its group; add a
+  `tile` under its `tile_grp` via `tile.gui_modeler_tile` **(Indicium · split-domain)** or flat with the
+  full key **(Indicium · single-domain)**. Send `menu_item_type` before its target (a non-matching
+  target is refused with `field_not_editable`) and a variant after its table. Creating a
+  `list_bar_grp`/`tile_grp` **does** require an ID up front.
+- A granted item also needs its group, menu and target right (a tile: menu, tile group, tile, target)
+  — see "Security" above and `thinkwise-sf-roles`.
 - When setting `tab_id`/`report_id`/`task_id` (or any lookup) by display text, verify the field actually
   populated — display text with extra wording beyond the plain identifier can silently fail to resolve,
   with no error raised.

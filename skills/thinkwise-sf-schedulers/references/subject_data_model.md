@@ -1,6 +1,6 @@
 # The subject a Scheduler points at — keys, hierarchy, and view subjects
 
-Loaded on demand from `thinkwise_sf_schedulers`.
+Loaded on demand from `thinkwise-sf-schedulers`.
 
 ## Data model: the subject the Scheduler points at
 
@@ -72,7 +72,7 @@ Scheduler subjects are very often views. Two rules matter, both defer-linked:
 - **Reference direction is the same as for any table** — the PK-owner (the real table) is
   `source_tab_id` and the FK-holder (the view) is `target_tab_id`, exactly as table-to-table. Set
   `check_ref = false`, since a view carries no physical FK constraint; the direction itself does not
-  change. Full explanation in `thinkwise_sf_data_model`.
+  change. Full explanation in `thinkwise-sf-data-model`.
 - **Resource dragging needs an instead-of trigger on most view subjects.** Dragging an activity to
   another resource updates the "group by" column to the target resource's value; since lookup-value
   translation isn't applied automatically on that write, a view subject typically needs an

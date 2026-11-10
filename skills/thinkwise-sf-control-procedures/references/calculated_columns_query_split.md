@@ -43,3 +43,17 @@ includes (non-exhaustive, and likely to grow): `col_query`, `dom_query`, `tab_pr
 `tab_data_col_query`, `dom_input_constraint_query`. Don't assume the pre-2026.2 flat column name
 still exists, and don't assume the metadata API's current property name for a field is the same as
 the real column to write into — check the entity definition's `kind` and navigation properties first.
+
+**Through the write API, the parent's pass-through field does work for the primary platform** — the
+split above matters for hand-written DML, not for every write. Verified through the write API on
+SF 2026.2: writing `calculated_field_type` and then `calculated_field_query` on the parent `col` makes
+the Software Factory fill the `col_query` row for the branch's platform itself (`rdbms_type` 0 on a
+SQL Server branch). `col_query` is also directly writable (add and update allowed). Rule of thumb:
+- **Primary platform** — write the parent (`col.calculated_field_query`); see
+  `thinkwise-sf-data-model`'s `references/calculated_columns.md` for the type-first ordering.
+- **An additional platform on a dual-platform branch** (e.g. PostgreSQL next to SQL Server) — write
+  that platform's own `<entity>_query` row with its `rdbms_type`; the pass-through was verified only
+  on a single-platform branch, so don't rely on it filling a second platform's row. See
+  `thinkwise-sf-postgresql-migration`.
+- **Hand-written DML** (dynamic model code, seed procedures) — always target the `_query` table, as
+  above.

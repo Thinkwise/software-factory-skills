@@ -35,9 +35,10 @@ Type `950` (`publish_message`) with `message_broker_id` and `message_broker_mess
 user flow (e.g. started by a table task) and in a system flow.
 
 - **Inputs** are pre-seeded rows in `process_action_modeler_message_broker_message_input`, one per
-  message input parameter. Through the API these rows can't be edited (and can't be read by key), so
-  map them in the Software Factory UI: Process flow → action → Input tab → each parameter to its
-  process variable. Unmapped parameters use their default value; nothing warns about it.
+  message input parameter (skip the `$` label row). Map each by editing its row — `assignment_method =
+  variable` plus `process_variable_id`, or `literal_constant` plus a constant — the same pre-seeded,
+  edit-only pattern as other action inputs (see `thinkwise-sf-process-flows`). Unmapped parameters use
+  their default value; nothing warns about it.
 - **Outputs** (status code, reply payload, …) map to process variables. Status `0` = OK, `1` = OK but no
   subscribers; negative values are errors (`-5` cannot connect, `-6` connect timeout, `-20` invalid
   topic, `-3x` decode/transformation errors). Route on the status when delivery matters.
@@ -48,7 +49,7 @@ For devices that report the outcome of a command on a separate result topic:
 
 1. A **task** (one shared template for all command buttons) inserts the command row, sets
    `correlation_id = concat('<prefix>-', scope_identity())`, normalizes the payload values and returns
-   them as task outputs (input+output parameters; see `thinkwise_sf_tasks`).
+   them as task outputs (input+output parameters; see `thinkwise-sf-tasks`).
 2. A **user flow** has each command task (table task) as a starting point, maps every task output to a
    process variable, and continues to **one** Publish message action whose inputs are those variables.
    One flow and one message serve every command.
