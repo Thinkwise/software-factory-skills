@@ -1,6 +1,6 @@
 # Message naming, reuse, text, security, and testing
 
-Loaded on demand from `thinkwise_sf_messages`.
+Loaded on demand from `thinkwise-sf-messages`.
 
 ## Naming and reuse
 
@@ -18,7 +18,7 @@ usage) before renaming, deleting, or reordering placeholders.
 
 - **If it's ambiguous whether an existing message can be reused, or whether a new `msg_option` should
   share `yes`/`no` (see the shared-translation gotcha above) versus get its own distinct id, ask the
-  user rather than guessing compatibility** — per `thinkwise_sf_base`'s "Ask, don't
+  user rather than guessing compatibility** — per `thinkwise-sf-base`'s "Ask, don't
   default" convention (see its Shared conventions section).
 
 ## Writing effective message text
@@ -46,7 +46,7 @@ responses — don't put anything in one you wouldn't put in a log line visible t
 
 ## Unit testing
 
-Load `thinkwise_sf_unit_tests` for the full mechanics — it already covers the
+Load `thinkwise-sf-unit-tests` for the full mechanics — it already covers the
 `unit_test_msg` entity ("expected message(s) for the sad-flow/validation path") as part of any code
 type's unit test. At minimum, cover: the message appears for the exact invalid condition; boundary/valid
 cases do *not* emit it; abort vs. non-abort behavior matches the design; transactions fully roll back on

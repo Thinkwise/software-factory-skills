@@ -20,21 +20,23 @@ Default subject, task, or report
 ```
 
 Apply this whenever an MCP connector with Software Factory access is used to create, inspect, or
-modify a variant of any kind. Domain: `sf/manage_datamodel`.
+modify a variant of any kind. Domain: split-domain instances `sf/manage_datamodel`; single-domain
+`sf/software_development`; otherwise find it with `search_domain_capabilities`.
 
 **Companion skills, not duplicated here**: full task-variant mechanics (`task_variant`,
 `task_variant_parmtr`, `task_variant_look_up_overview`, creation via `task_create_task_variant`) live
-in `thinkwise_sf_tasks` — read it before building a task variant; this skill covers
+in `thinkwise-sf-tasks` — read it before building a task variant; this skill covers
 only how a table variant *selects* a task variant (`tab_variant_task_overview`). Screen-type
-assignment fields (`main_screen_type_id` etc.) always point at a screen type that already exists —
-creating a new one isn't supported through the MCP tools; see
-`thinkwise_sf_build_planner`'s interaction-surface step and the screen-type API-quirk
-note in `thinkwise_sf_data_model`. Conditional-layout-per-variant mechanics live in
-`thinkwise_sf_conditional_layouts`. Prefilter states and groups live in
-`thinkwise_sf_prefilters`. Scheduler and map per-variant settings live in
-`thinkwise_sf_schedulers` and `thinkwise_sf_maps`.
+assignment fields (`main_screen_type_id` etc.) must point at a screen type that already exists —
+prefer an existing one, or build it first (`thinkwise-sf-subject-components`'
+`references/screen_types.md`); see
+`thinkwise-sf-build-planner`'s interaction-surface step and the screen-type API-quirk
+note in `thinkwise-sf-data-model`. Conditional-layout-per-variant mechanics live in
+`thinkwise-sf-conditional-layouts`. Prefilter states and groups live in
+`thinkwise-sf-prefilters`. Scheduler and map per-variant settings live in
+`thinkwise-sf-schedulers` and `thinkwise-sf-maps`.
 Unit-testing guidance (what to test, what not to) lives in
-`thinkwise_sf_unit_tests`.
+`thinkwise-sf-unit-tests`.
 
 ## Golden rule — this is a judgment call skill, not just a mechanics reference
 
@@ -67,9 +69,9 @@ reuse or extend, or the difference is trivially and entirely a presentation chan
 
 | Kind | Master entity(ies) | Presentation entity | Key | Created via |
 |---|---|---|---|---|
-| Table (subject) variant | `tab` (default) | `tab_variant_overview` | `tab_id, tab_variant_id` | `task_create_tab_variant` (bound to `tab` or `tab_variant_overview`) |
-| Task variant | `task` (default) | `task_variant`/`task_variant_overview` | `task_id, task_variant_id` | `task_create_task_variant` — see `thinkwise_sf_tasks` |
-| Report variant | `tab_report`/report master (default) | `report_variant` + `report_variant_overview` | `report_id, report_variant_id` | Plain `stage_resource` add against `report_variant` — **no dedicated create task exists** (confirmed live: `search_domain_capabilities` surfaces no `task_create_report_variant`); it's a bare-key entity add, the same pattern the tasks skill documents for creating a `task` row itself |
+| Table (subject) variant | `tab` (default) | `tab_variant_overview` | `tab_id, tab_variant_id` | Plain add against `tab_variant` (flat, no parent) — `task_create_tab_variant` exists but is not usable through the write API (see "Creating, copying, renaming, deleting a table variant") |
+| Task variant | `task` (default) | `task_variant`/`task_variant_overview` | `task_id, task_variant_id` | `task_create_task_variant` — see `thinkwise-sf-tasks` |
+| Report variant | `tab_report`/report master (default) | `report_variant` + `report_variant_overview` | `report_id, report_variant_id` | Plain `stage_resource` add against `report_variant` — the known-working route; a bound `task_create_report_variant` (on `report`) does exist but is untested, and may hit the same form-variant staging problem as `task_create_tab_variant` |
 
 A table variant is by far the most structurally rich of the three — it carries not just its own
 scalar settings but a full family of child `tab_variant_*_overview` entities, one per configurable
@@ -78,10 +80,10 @@ conditional layouts, cubes, scheduler, maps, card list, tree, sort, filter, sear
 
 ### Before creating: confirm the plan
 
-Before the first `task_create_tab_variant`/`task_create_task_variant`/`report_variant`-add call,
+Before the first `tab_variant`-add/`task_create_task_variant`/`report_variant`-add call,
 lay out the plan in one short message and get the user's confirmation on it — the create call itself
 is cheap to undo, but the design decisions behind it (see the Golden rule above) are not ones to
-guess at. This is the `thinkwise_sf_base` "Confirm-before-mutate" convention applied
+guess at. This is the `thinkwise-sf-base` "Confirm-before-mutate" convention applied
 at this skill's own grain:
 
 - Which of the **three kinds** (table, task, report) this is.
@@ -95,24 +97,36 @@ Only skip this confirmation when the user has already stated all of the above un
 
 ### Creating, copying, renaming, deleting a table variant
 
-Go through the dedicated bound tasks — keys aren't renamable in place, the same pattern as
-tables/columns/tasks elsewhere in the model:
+Copy, rename and delete go through the dedicated bound tasks — keys aren't renamable in place, the
+same pattern as tables/columns/tasks elsewhere in the model. **Creating** does not:
 
-- `task_create_tab_variant` — mandatory `tab_id`, `tab_variant_id`, `generate_transl_object`;
-  optional `tab_variant_description`. Leave `generate_transl_object` on unless the variant is
-  deliberately meant to share the default table's translation.
+- **Create with a plain `tab_variant` add, not `task_create_tab_variant`.** The task (mandatory
+  `tab_id`, `tab_variant_id`, `generate_transl_object`; optional `tab_variant_description`) stages,
+  but every parameter patch — and any properties passed on stage — fails with
+  `staged_resource_type_not_found`, because its staged type is a gui_form variant (verified through
+  the write API on SF 2026.2). Instead add `tab_variant` directly, flat with no parent, sending
+  `model_id`, `branch_id` (key lookups with `value_kind: "data"`), `tab_id` and `tab_variant_id`
+  first, then any description. On commit SF creates the child overview rows itself (e.g.
+  `tab_variant_col_overview`, form, grid, prefilter overviews) — patch those afterwards.
+  `generate_transl_object` defaults to `false`; set it to `true` when the variant needs its own
+  translation. Reported on SF 2026.2, the variant's own translation (type 281) appears only at
+  definition generation, not right after the add — see `thinkwise-sf-translations`.
 - `task_copy_tab_variant` — `from_tab_id`, `from_tab_variant_id`, `to_tab_variant_id`. Copies an
   existing variant's full configuration as a starting point for a new one (e.g. cloning a
   structurally similar variant onto the same or a different table).
 - `task_rename_tab_variant` — `tab_id`, `from_tab_variant_id`, `to_tab_variant_id`.
 - `task_delete_tab_variant` — `tab_id`, `tab_variant_id`. **Check `tab_variant_used` first** (see
   "Track every reference" below) — deleting a variant that a menu item, detail, lookup, or process
-  flow still points at breaks that reference.
+  flow still points at breaks that reference. The delete leaves the variant's `transl_object` rows
+  behind; delete those too (see `thinkwise-sf-translations`).
 
-Once created, a table variant's own row (`tab_variant_overview`) already carries a full set of
-scalar fields — screen types, CRUD/grid/form behaviour flags, icon, page size, badge, offline
-settings, and more (see the field-level list below) — every one of them independently overridable,
-no activation step needed.
+Once created, a table variant's own row carries a full set of scalar fields — screen types,
+CRUD/grid/form behaviour flags, icon, page size, badge, offline settings, and more (see the
+field-level list below), each independently overridable. **Many of them only take effect with their
+`apply_*` flag on `tab_variant` switched on** (`apply_main_screen_type_id`,
+`apply_detail_screen_type_id`, `apply_icon`, `apply_page_size`, `apply_badge_interval`,
+`apply_max_no_of_records`, `apply_no_of_cols_in_form`, …): set the flag together with the value, flag
+first.
 
 ## Inheritance — the mechanic that actually matters
 
@@ -139,7 +153,7 @@ variant's presentation by patching these rows, not by re-adding them:
 | `tab_variant_look_up_overview` | `+ref_id` | Look-up control type, popup, **which `look_up_tab_variant_id`** the reference resolves to, visibility for filter |
 | `tab_variant_detail_overview` | `+ref_id` | `show_detail`, order, screen area, **which `detail_tab_variant_id`** renders the detail, alt. translation for the reference-add label |
 | `tab_variant_prefilter_overview` | `+tab_prefilter_id` | `main_prefilter_state`/`detail_prefilter_state`/`look_up_prefilter_state` (off/off_hidden/on/on_locked/on_hidden), group, order |
-| `tab_variant_conditional_layout_overview` | see `thinkwise_sf_conditional_layouts` | Per-variant conditional formatting |
+| `tab_variant_conditional_layout_overview` | see `thinkwise-sf-conditional-layouts` | Per-variant conditional formatting |
 | `tab_variant_scheduler_overview` / `tab_variant_map_overview` / `tab_variant_cube_overview` | see their component skills | Per-variant scheduler/map/cube view selection |
 
 **This is the one-`tab_task`-row-per-table constraint's resolution, confirmed by design**: `tab_task`
@@ -158,9 +172,10 @@ becomes difficult to trace which effective configuration actually renders at run
 
 ## Report variants — creation and settings
 
-`report_variant` itself is a bare add — no dedicated bound task exists to create one (confirmed via
-`search_domain_capabilities`: no `task_create_report_variant` surfaces, only `Reset`/`unlink` tasks
-touch existing rows). Add it directly against `report_variant` (`report_id`, `report_variant_id`),
+`report_variant` itself is a bare add — the known-working route. A bound `task_create_report_variant`
+does exist on `report` (an earlier search missed it), but it has not been run through the write API
+and may hit the same form-variant staging problem as `task_create_tab_variant`; prefer the direct
+add. Add it against `report_variant` (`report_id`, `report_variant_id`),
 then configure the presentation entity `report_variant_overview` (same key), which carries:
 
 | Field | Purpose |
@@ -192,7 +207,7 @@ can't be summarized that concisely, it may be trying to be a genuinely separate 
 | Same report, different parameters or output behavior | Report variant |
 | User can optionally toggle a filter | A normal (unlocked) prefilter — not a variant |
 | Dedicated menu worklist with a locked context | Table variant (with a locked/hidden prefilter) |
-| Reusable component arrangement across unrelated subjects | An existing screen type (creating a new one isn't supported via MCP — see `thinkwise_sf_build_planner`) |
+| Reusable component arrangement across unrelated subjects | A screen type — prefer an existing one; build a new one only when nothing fits (see `thinkwise-sf-build-planner`) |
 | Different SQL dataset or joins | A separate view/table |
 | Different business logic or side effects | A separate task |
 | Different report content or template | A separate report |
@@ -221,15 +236,18 @@ what to test on a variant, read `references/variant_maintenance.md`.
 
 - **Ask before deciding** whether a variant is warranted at all, which kind, and its name — per the
   Golden rule above — whenever the framework doesn't make it obvious.
-- **Create in the right order**: `task_create_tab_variant` (or the equivalent for task/report
-  variants) first; only then patch the auto-populated child `*_overview` rows.
-- **Field-level settings need no activation** — just patch the value; it stops inheriting the
-  moment it diverges from the default (verified via the `default_*` mirror columns where present,
-  e.g. `tab_variant_col_overview.default_type_of_col`).
-- **Set-level settings (grid/form/card list/tree/detail/filter/search/sort) need `task_setup_*`
-  before they're a genuinely independent snapshot** — don't assume patching rows alone detaches them
-  from the default; and don't take the snapshot unless the set truly needs to be stable
-  independently.
+- **Create in the right order**: the `tab_variant` add (or the equivalent for task/report
+  variants) first, committed; only then patch the auto-populated child `*_overview` rows. Don't use
+  `task_create_tab_variant` — its parameters can't be set through the write API.
+- **Field-level settings with an `apply_*` flag need that flag on** — set `apply_<field>` on
+  `tab_variant` before (or with) the value, or the override has no effect. Per-row overrides without a
+  flag (e.g. `tab_variant_col_overview.type_of_col`) stop inheriting the moment they diverge from their
+  `default_*` mirror.
+- **Set-level settings (grid/form/card list/tree/detail/filter/search/sort): run `task_setup_*`
+  before editing a row.** Editing one row of a not-yet-set-up set snapshots *all* its rows into the
+  variant anyway — and can change rows you didn't touch (a hidden PK came back visible,
+  `type_of_col` 3 → 1). Re-read the whole set after any edit, and don't take the snapshot unless the
+  set truly needs to be stable independently.
 - **Use `task_reset_tab_variant_<x>_overview` to intentionally return to inheritance** — it exists
   for every overview kind, not just the snapshot ones.
 - **Query `tab_variant_change` to audit drift** before a release or after any bulk copy — it's a
@@ -237,6 +255,7 @@ what to test on a variant, read `references/variant_maintenance.md`.
 - **One `tab_task`/`tab_report` row per table** — two task/report variants on the same table need
   two table variants, each with its own `tab_variant_task_overview`/`tab_variant_report_overview`
   selection, not two base rows.
-- **Report variants have no dedicated create task** — add `report_variant` directly, the same
-  bare-entity-add pattern the tasks skill documents for the `task` master row.
+- **Report variants: add `report_variant` directly** — the same bare-entity-add pattern the tasks
+  skill documents for the `task` master row. `task_create_report_variant` exists on `report` but is
+  untested and may fail like `task_create_tab_variant`.
 

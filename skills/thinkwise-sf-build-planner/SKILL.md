@@ -13,16 +13,21 @@ implements it.
 
 ## How to run the interview
 
+0. **Know the environment.** Rely on `thinkwise-sf-base`'s §1 check (connector profile, domain
+   layout, surface, model, branch) rather than re-deriving it here. Without an Indicium MCP
+   connector, the plan is still produced the same way, but it is handed over as manual Software
+   Factory steps and/or SQL for the user to apply, not executed by the sibling skills through a
+   connector — say so in the plan.
 1. **Anchor the goal first, before any technical branching.** Ask one question: restate the
    problem as *outcome + who benefits + trigger event + success condition*, give your own
    recommended restatement, and get it confirmed. Nothing below should start until this is settled
    — a wrong anchor makes every downstream decision wrong too.
-2. **Explore the live model before asking anything else.** Use the connected MCP tools
-   (`search_capabilities` → `search_domain_capabilities` → `get_entity_definition`/
-   `get_task_definition`, or `get_available_domains`/`get_domain_definition` if routing is
-   ambiguous) to find existing tables, screens, tasks, and processes relevant to the goal. Never
-   ask the user something the model can already answer — e.g. don't ask "do you have a customer
-   table" when `get_domain_definition` can tell you.
+2. **Explore the live model before asking anything else.** Read the existing tables, screens,
+   tasks, and processes relevant to the goal through the connector — including existing web
+   connections and message brokers when the goal talks to an outside system. Never ask the user something
+   the model can already answer — e.g. don't ask "do you have a customer table" when a read can
+   tell you. Without a connector, work from metadata the user pastes (e.g. `get_sf_metadata` JSON)
+   and ask only for what it doesn't show.
 3. **Ask one question at a time** — never bundle multiple decisions together.
 4. **Walk the decision tree top-down, resolving dependencies before dependents.** Use the tree
    below as the default shape, but skip branches the anchor step already ruled out.
@@ -36,7 +41,7 @@ implements it.
    (step 6) — but wherever this skill says "default to X," treat X as the recommended answer only:
    surface it and get it confirmed the same way as every other branch above, never apply it without
    asking. This is also what keeps this skill aligned with
-   `thinkwise_sf_base`'s "Shared conventions" (confirm-before-mutate, ask-don't-
+   `thinkwise-sf-base`'s "Shared conventions" (confirm-before-mutate, ask-don't-
    default) — this skill's own recommend-and-confirm pattern already satisfies both, so there's
    nothing further to add here.
 
@@ -46,8 +51,12 @@ Resolve in this order — later branches often depend on earlier ones:
 
 1. **Data** — does this need new tables/columns/domains, or does existing structure already cover
    it? Check the live model first (step 2 above) before asking. Defer exact naming/typing/reference
-   conventions to `thinkwise_sf_data_model` — don't relitigate them here, just decide
-   *what* is needed.
+   conventions to `thinkwise-sf-data-model` — don't relitigate them here, just decide
+   *what* is needed. One naming rule does belong in the plan itself: **tables, tasks, reports, and
+   process flows share one id namespace** (the Software Factory derives `layout_<id>` from each), so
+   name reports with an `rpt_` prefix and process flows with a `_flow` suffix when listing them —
+   unless the model already follows its own distinguishing convention, in which case match that (check
+   the existing reports and process flows first) — see `thinkwise-sf-data-model`'s naming rules.
 2. **Process shape** — is this a single CRUD interaction, a multi-step orchestration with decision
    points (process flow), a scheduled/recurring job (scheduler / system flow), or a one-shot
    batch operation? This determines most of what follows.
@@ -55,33 +64,42 @@ Resolve in this order — later branches often depend on earlier ones:
    **Before planning a process flow, confirm orchestration is actually warranted.** Several statements
    happening in sequence is not by itself a reason to reach for a flow — a single task, a subroutine,
    or a Default/Layout/Context control procedure often already covers it (see
-   `thinkwise_sf_process_flows`'s `references/process_flow_design_guide.md`, "When to
+   `thinkwise-sf-process-flows`'s `references/process_flow_design_guide.md`, "When to
    use a process flow" / "When not to"). Reserve a process flow for genuine multi-action coordination:
    a guided user sequence, an approval flow with real alternatives, an integration pipeline, a
    background queue/scheduled job, or a reusable subflow.
+
+   **External integration picks its own mechanism.** A request/response call to an HTTP/REST API is a
+   web connection plus a `web_connection` process action (`thinkwise-sf-web-connections`); pushing or
+   receiving events over MQTT is a message broker with Publish message actions and subscriptions that
+   start system flows (`thinkwise-sf-message-brokers`). Settle which one before planning the flow.
 3. **Interaction surface** — which screen type and components fit the data and process shape:
-   list/card/detail/tree, scheduler view, map? **A new `screen_type` cannot be created through the
-   MCP tools** — every plan must select from screen types that already exist in the model, not
-   invent one.
+   list/card/detail/tree, scheduler view, map? **Prefer a screen type that already exists in the
+   model.** A new `screen_type` *can* be built through the write API (see
+   `thinkwise-sf-subject-components`' `references/screen_types.md`), but only plan one when nothing
+   existing has the requested arrangement — and then the component tree is itself a plan decision.
 
    **Name the subject's job before choosing its components.** Find-and-open, work queue, compare
    records, maintain a record, review history/exceptions, analyze totals, or select-in-a-lookup each
    want a different column set/sort/filter, not just a different component — see
-   `thinkwise_sf_data_model`'s `references/subject_presentation_design.md`. If the same table
+   `thinkwise-sf-data-model`'s `references/subject_presentation_design.md`. If the same table
    needs to serve two different jobs for different users, that's the signal to plan a variant
-   (`thinkwise_sf_variants`) rather than one screen trying to cover both.
+   (`thinkwise-sf-variants`) rather than one screen trying to cover both.
    - **Ask the user what they want the screen to look like** — grid, tree view, card list, form,
      scheduler, map, cube/pivot, or some combination — rather than assuming one from the data/process
-     shape alone.
+     shape alone. A scheduler is planned with `thinkwise-sf-schedulers`, a cube/pivot or chart with
+     `thinkwise-sf-cubes` (which also covers when a cube isn't the right tool), a map with
+     `thinkwise-sf-maps`.
    - Query the live model for existing screen types (`screen_type`, filtered by `model_id`/
-     `branch_id` — see the unscoped-query gotcha in `thinkwise_sf_data_model`'s quirks
+     `branch_id` — see the unscoped-query gotcha in `thinkwise-sf-data-model`'s quirks
      section) and offer the ones that reasonably match as options, grounded in what actually exists.
    - **If no existing screen type contains the requested component** (e.g. no Scheduler-only screen
-     type yet exists), say so explicitly in the plan and mark creating that screen type as a manual
-     prerequisite the user must do themselves in the Software Factory UI before the rest of the plan
-     can be executed — never silently substitute a different component.
+     type yet exists), say so explicitly and propose a new screen type with its component tree
+     (root, tabs/splitters, data components) as a plan line item — never silently substitute a
+     different component. Component properties, breakpoints and screen areas stay a manual Software
+     Factory step; list them as such.
    Defer how the chosen Grid/Form/Card list/Tree view itself should be configured (title/image
-   source, column order, grouping, drag-and-drop) to `thinkwise_sf_subject_components`
+   source, column order, grouping, drag-and-drop) to `thinkwise-sf-subject-components`
    — the plan itself must still name the intended Form groups/sections as a decision line item (see
    "When you're done" below); only the field-level mechanics are deferred.
 4. **Logic placement** — for each piece of business logic, decide *where it lives* and argue why:
@@ -91,21 +109,21 @@ Resolve in this order — later branches often depend on earlier ones:
      every write path for free and needs no logic to review or test. Only fall through to a control
      procedure once this is genuinely ruled out.
    - control procedure — pure data derivation/defaulting, no user interaction, used from exactly one
-     place (see `thinkwise_sf_control_procedures`). **Name the specific concept,
+     place (see `thinkwise-sf-control-procedures`). **Name the specific concept,
      not just "control procedure"** — Default (fill/derive a value), Layout (visibility/editable/
      mandatory state), Context (task/report/detail availability), Badge (a count), Change detection
      (an auto-refresh decision), Trigger or a constraint (integrity on every write path), or Handler
      (custom GUI/API CRUD). Picking among these is a real design decision, not an implementation
      detail to leave for later — see the quick-selection table and per-concept guidance in
-     `thinkwise_sf_control_procedures`'s
+     `thinkwise-sf-control-procedures`'s
      `references/logic_concept_design_guide.md`.
    - **subroutine** — reusable logic with an explicit parameter/return contract, called from *more
      than one* place (two+ control procedures, a view plus a task, a process flow plus a report, or
      an external API consumer) — see "When to reach for a subroutine" below and
-     `thinkwise_sf_subroutines`
-   - task — a user-triggered action with parameters/form (see `thinkwise_sf_tasks`)
+     `thinkwise-sf-subroutines`
+   - task — a user-triggered action with parameters/form (see `thinkwise-sf-tasks`)
    - process flow — orchestration across multiple objects/steps, or anything needing a decision
-     point or a scheduled trigger (see `thinkwise_sf_process_flows`, and step 2's
+     point or a scheduled trigger (see `thinkwise-sf-process-flows`, and step 2's
      orchestration gate above before defaulting to this option)
    Getting this placement right — and being able to say why — is the main value of this skill;
    don't let it collapse into "put it wherever."
@@ -140,16 +158,17 @@ Resolve in this order — later branches often depend on earlier ones:
    reused someday" — if the plan can't name a second caller yet, plain control-procedure placement
    is the right call, but propose this as your recommendation and confirm it with the user, same as
    any other branch, and revisit if a second caller actually shows up.
-5. **Entry points** — menu placement (`thinkwise_sf_menus`), and whether
+5. **Entry points** — menu placement (`thinkwise-sf-menus`), and whether
    prefilters/variants are needed for different roles or contexts
-   (`thinkwise_sf_prefilters`).
+   (`thinkwise-sf-prefilters`). Plan reports — their parameters and how each is opened (menu, tile,
+   table, process flow) — with `thinkwise-sf-reports`; a report's layout file is a manual step.
 
    **Gate every proposed menu item on "is this a genuine independent starting point?" first.**
    Something a user selects a record and then acts on — a contextual task, a record-specific report, a
    child/detail table — belongs on that subject (a detail, task/report button, process step, prefilter,
    or variant), not the menu, no matter how convenient a menu shortcut would be. Only plan a menu entry
    for a subject/task/report a user genuinely starts or resumes work from directly. See
-   `thinkwise_sf_menus`'s `references/menu_design_guide.md` for the full in/out criteria
+   `thinkwise-sf-menus`'s `references/menu_design_guide.md` for the full in/out criteria
    and organizing-principle choice.
 
    **Different roles needing different visibility is a grant, not a new menu or group.** If the only
@@ -161,16 +180,19 @@ Resolve in this order — later branches often depend on earlier ones:
    family, operational horizon, or admin level) the target menu/group already uses, and place the new
    item under that same principle rather than whichever group seems locally convenient — a menu mixing
    principles at one level stops being predictable to scan.
-6. **Cross-cutting concerns** — translations (`thinkwise_sf_translations`),
-   role/security visibility, and (if relevant) a maps component
-   (`thinkwise_sf_maps`).
+6. **Cross-cutting concerns** — translations (`thinkwise-sf-translations`),
+   role/security visibility (`thinkwise-sf-roles` — which role gets which rights, planned per role),
+   icons for new tables, tasks, reports and menu items (`thinkwise-sf-icons`), status colours and
+   warning highlights (`thinkwise-sf-conditional-layouts`, which owns the "should this object get
+   one?" test), and unit tests for the logic placed in step 4 (`thinkwise-sf-unit-tests` — which
+   control procedures, subroutines, tasks or process flows get a test, and what each asserts).
 
    **Layout/Context are visibility only, never the security control.** If a requirement is really
    about *who's allowed* to see or do something, the plan needs actual role rights/row-security —
    recommend Layout/Context for that requirement only as a usability nicety on top of real
    authorization, never as the enforcement itself.
 
-   **Messages** (`thinkwise_sf_messages`) are cross-cutting in the same way: every
+   **Messages** (`thinkwise-sf-messages`) are cross-cutting in the same way: every
    failure mode, confirmation, and choice surfaced during step 4's logic placement needs its own
    deliberate message decision, not an afterthought bolted on once the logic already works. For each
    one, decide and record:
@@ -205,7 +227,7 @@ For every resolved branch, capture:
 
 - **Decision** — what was chosen
 - **Principle** — why this over the alternatives that were on the table
-- **Owning skill** — which `thinkwise_sf_*` skill implements it
+- **Owning skill** — which `thinkwise-sf-*` skill implements it
 
 Don't wait until the end to write these down — capture each as it's resolved so nothing gets lost
 if the conversation runs long.
@@ -223,25 +245,24 @@ Produce the build plan with this content, regardless of output format:
 1. **Goal statement** — the confirmed anchor from step 1
 2. **Data model deltas** — new/changed tables, columns, domains (if any)
 3. **Artifact list** — every screen/task/process flow/control procedure/scheduler/view/prefilter/
-   menu entry needed, each with its decision, principle, and owning skill from "Recording
+   report/menu entry/role/web connection/message broker/cube/conditional layout/unit test needed, each with its decision, principle, and owning skill from "Recording
    decisions" above — including Form groups/sections (and any collapsible section) for a table
    gaining or changing a Form, not just the screen/task-level artifacts
 4. **Sequencing** — an explicit *numbered* step list (not a prose "build order" paragraph),
-   respecting the dependencies surfaced during the interview, and listing any manual
-   screen-type-creation prerequisite from step 3 as step 1, since nothing downstream of it can be
-   built until the user has done it. The number of steps here is what the execution-time progress
+   respecting the dependencies surfaced during the interview, and building any new screen type from
+   step 3 first, since the tables/variants that use it reference it by id. The number of steps here is what the execution-time progress
    percentage is measured against (see below).
 5. **Open risks** — anything still uncertain or deferred
 6. **Final verification gate** — always the last line item, regardless of how small the plan is: run
-   the translation completeness query from `thinkwise_sf_data_model`'s "Translating new
+   the translation completeness query from `thinkwise-sf-data-model`'s "Translating new
    objects" section across the whole branch before considering the plan executed. Make this an
    explicit item in the plan itself, not an assumed follow-up left to whichever skill happens to
    create the last object — a real build translated the new tables it created and still left every
    one of their columns at bracket-placeholder text, because nothing forced a final check.
 
 This plan is the handoff point: implementation proceeds by invoking each named
-`thinkwise_sf_*` skill in sequence, not by this skill making model changes directly.
-Per `thinkwise_sf_base`'s "Plan as numbered steps, and report progress against
+`thinkwise-sf-*` skill in sequence, not by this skill making model changes directly.
+Per `thinkwise-sf-base`'s "Plan as numbered steps, and report progress against
 them" convention, whoever executes the plan posts a one-line status update after each numbered step
 (or logical group of steps) completes — the step just finished, the next step, and percent complete
 (steps done ÷ total steps from item 4). Per that same convention, execution is *one continuous run*:
@@ -287,8 +308,8 @@ can scan and drill into just the sections they need:
    and the expand/collapse controls, and follow the template's light/dark token structure so the
    artifact matches the viewer's theme.
 6. Give the artifact a stable file path so re-publishing later revisions of the same plan updates
-   the same artifact rather than minting a new URL each time, and pick a favicon that fits (e.g. a
-   clipboard or blueprint emoji).
+   the same artifact rather than minting a new URL each time, and give it a fitting one-word `icon` on
+   the first publish (e.g. `plan` or `clipboard`).
 
 When in doubt between the two formats, default to plain chat text — only reach for the artifact
 once the plan is genuinely too broad to scan as a wall of text.

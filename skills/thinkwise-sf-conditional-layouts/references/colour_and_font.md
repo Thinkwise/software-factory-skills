@@ -1,6 +1,6 @@
 # Colour and font fields — legacy vs. Universal UI
 
-Loaded on demand from `thinkwise_sf_conditional_layouts`.
+Loaded on demand from `thinkwise-sf-conditional-layouts`.
 
 ## Colour and font fields — legacy vs. Universal UI
 

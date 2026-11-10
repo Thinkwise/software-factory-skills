@@ -88,14 +88,14 @@ FK) with a `tab_variant_tree` row seeded for each, but only the **`department_id
 carry the base-table direction over to the variant field by assumption; they are not symmetric.
 
 **Don't assume a variant's tree "just works" after `task_setup_tab_variant_tree_overview`** either —
-per `thinkwise_sf_variants`, that Setup task creates one `tab_variant_tree_overview` row
+per `thinkwise-sf-variants`, that Setup task creates one `tab_variant_tree_overview` row
 per column but does not auto-populate `parent_col_id` on any of them. Read it back after Setup and set
 it explicitly, on the identity/PK column's row, per the direction above.
 
 ## Step by step
 
 1. **Hierarchical**: confirm (or create) a self-referencing `ref` on the subject (per
-   `thinkwise_sf_data_model`), then set `parent_col_id` on the FK column to the primary key
+   `thinkwise-sf-data-model`), then set `parent_col_id` on the FK column to the primary key
    column it resolves to.
    **Attribute**: set `default_sort = true` + ascending `sort_no` on every grouping column, and
    `grp_until = true` on the last one that should form a level.
@@ -107,8 +107,9 @@ it explicitly, on the identity/PK column's row, per the direction above.
    critical distinctions.
 5. Set `tree_default_expanded` / `tree_default_expanded_level` conservatively (1–2 levels for most
    trees) and `tree_show_label`.
-6. Place a Tree view leaf panel on an existing screen type for the subject — creating a new screen
-   type isn't supported via MCP (see `thinkwise_sf_build_planner`).
+6. Place a Tree view leaf panel on a screen type for the subject — prefer an existing one; if none
+   fits, build one per `references/screen_types.md` (the standard generated screen types include no
+   tree-only layout).
 7. If this is a variant, run `task_setup_tab_variant_tree_overview`, then explicitly verify/set
    `tab_variant_tree.parent_col_id` **on the identity/PK column's row**, pointing to the FK column —
    the opposite direction from step 1's base-table convention (see the gotcha above).
@@ -118,7 +119,7 @@ it explicitly, on the identity/PK column's row, per the direction above.
 Use the table directly when the parent-child relation lives in one entity and users edit nodes
 normally. Use a view when several entity types must appear in one tree, a bill of material must be
 exploded recursively, or icons/labels/paths need normalizing across sources — building it as a view
-follows `thinkwise_sf_views`, and a multi-type hierarchy view is easiest to reason
+follows `thinkwise-sf-views`, and a multi-type hierarchy view is easiest to reason
 about with a normalized shape (`node_id`, `parent_node_id`, `node_type`, `display_text`, `icon`,
 `sort_order`).
 
@@ -134,7 +135,7 @@ about with a normalized shape (`node_id`, `parent_node_id`, `node_type`, `displa
   guaranteed tiny — Expand all/Collapse all already cover the rest.
 - **Display column must earn its place.** Never a bare technical ID; keep any dedicated expression
   column cheap since it evaluates per node.
-- **Gotcha — no dedicated conditional-layout flag for Tree.** `thinkwise_sf_conditional_layouts`
+- **Gotcha — no dedicated conditional-layout flag for Tree.** `thinkwise-sf-conditional-layouts`
   confirms `apply_to_grid`/`apply_to_form`/`apply_to_edit`/`apply_to_scheduler_resource` as the complete
   set of surface flags — there is no `apply_to_tree`. Whether Tree nodes inherit `apply_to_form`'s
   styling, `apply_to_grid`'s, both, or neither has not been independently confirmed against a live

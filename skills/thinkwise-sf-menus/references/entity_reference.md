@@ -1,18 +1,19 @@
 # Menu entity and task reference — creating menus, groups, items and role rights
 
-Loaded on demand from `thinkwise_sf_menus`.
+Loaded on demand from `thinkwise-sf-menus`.
 
 ## Creating things: verified entity/task reference
 
 ### Menu
 
-No bound "create" task exists for `menu` in this domain — create it as a plain new record (the generic
-connector's insert/`add` flow) with `menu_id` and `menu_type` set, then `show_filter`/
-`show_open_documents`, and `icon_id` (a suitable icon per `thinkwise_sf_icons` — broad
+No bound "create" task exists for `menu` — create it as a plain new record (the generic
+connector's insert/`add` flow) with `menu_id` and `menu_type` only — confirm `menu_type` up front: it was editable on an edit of a
+menu without groups (verified on SF 2026.2), but is reported to lock once the menu has groups — then `show_filter`/
+`show_open_documents`, and `icon_id` (a suitable icon per `thinkwise-sf-icons` — broad
 and stable, representing the whole application/module the menu covers, not one frequently-used screen)
-as wanted. on a current-platform model `menu_platform` came back `readonly` at
-create, already defaulted to `8` (`universal`) — you may not be able to set it in the create call,
-and universal is the only actively-maintained target anyway (see "New menu, or the existing one?"
+as wanted. `menu_platform` comes back `readonly` at create with a default that differs by model and
+version (`8` = `universal` in one model, `1` in another) — read it back rather than assume a value; you
+may not be able to set it in the create call, and universal is the only actively-maintained target anyway (see "New menu, or the existing one?"
 above), so don't treat a readonly `menu_platform` as an error. Staging the `menu` as a dependent
 record of `branch` (`parent_entity_set: "branch"`, `parent_key: {model_id, branch_id}`) works if a
 bare add is rejected. `task_rename_menu` (params `branch_id`, `from_menu_id`, `to_menu_id`)
@@ -25,18 +26,21 @@ structure, a good starting point for a new platform variant of one you already h
 | Entity | Create | Mandatory params | Then edit directly |
 |---|---|---|---|
 | `list_bar_grp` | `task_create_list_bar_grp`, bound to `list_bar_tree` | `list_bar_grp_id` (optional `icon_id`) | `list_bar_grp_description`, `order_no` |
-| `tile_grp` | `task_create_tile_grp`, bound to `tile_tree` | `tile_grp_id` | `tile_grp_description`, `order_no`, `icon_id` |
+| `tile_grp` | `task_create_tile_grp`, bound to `tile_tree` (sets no description or order — edit both afterwards) | `tile_grp_id` | `tile_grp_description`, `order_no`, `icon_id` |
 | `module_grp` | *(no bound task — plain add)* | — | all fields, including `grp_module_grp_id` for nesting, and `icon_id` |
+
+A tile group belongs on a tile menu only. The Software Factory accepts a `tile_grp` under a list-bar
+menu without complaint — never put one there.
 
 All three group types carry an `icon_id` — set one deliberately as part of creating the group (the
 shared business category it represents, e.g. Sales/Warehouse/Finance), per
-`thinkwise_sf_icons`, rather than leaving it blank because the field itself is optional.
+`thinkwise-sf-icons`, rather than leaving it blank because the field itself is optional.
 
 **But if `menu.icon_id` / `list_bar_grp.icon_id` writes fail with `403` (`staging_request_failed`)
 or `lookup_not_found`, the model has no icon repository yet** on a from-scratch
 model where `icon` had zero rows. A brand-new model isn't seeded with icons; every `*_icon_id`
 assignment fails until an icon-set base model is linked and merged (see
-`thinkwise_sf_icons`). Treat this 403 as "no icon repo", not a permissions problem:
+`thinkwise-sf-icons`). Treat this 403 as "no icon repo", not a permissions problem:
 either link an icon set first (a prerequisite step), or ship the menu/groups with blank icons and
 say so. When the repo *does* exist, set `icon_id` by its integer id with `value_kind: "data"` — the
 `icon.icon_look_up` lookup has no key to select a bare number by otherwise.
@@ -59,9 +63,9 @@ just for bootstrapping.
 | Entity | Create | Mandatory params | Then edit directly |
 |---|---|---|---|
 | `list_bar_item` | `task_create_list_bar_item`, bound to `list_bar_tree` | *(none)* | `list_bar_item_description`, `menu_item_type`, `tab_id`/`tab_variant_id` or `report_id`/`report_variant_id` or `task_id`/`task_variant_id`, `order_no` |
-| `tile` | `task_create_tile`, bound to `tile_tree` | *(none)* | same fields, plus `tile_size` |
+| `tile` | Plain add — route depends on the layout (see below); `task_create_tile` exists only as bound variants on `menu_tab`/`menu_task`/`menu_report`/`tile_tree` with 6 mandatory params | — | same fields, plus `tile_size` (`small`=0, `medium`=1, `wide`=2, `large`=3) |
 
-**Verified, easy to miss**: both create-item tasks take **zero parameters** — they create a shell row
+**Verified, easy to miss**: `task_create_list_bar_item` takes **zero parameters** — it creates a shell row
 with a system-generated key, unlike `list_bar_grp`'s creation which requires an ID up front.
 
 **Verified live, and it contradicts the zero-parameter appearance above**: `task_create_list_bar_item`
@@ -70,10 +74,27 @@ error on `menu_item_type` — a field the task never exposes a way to set. Don't
 for creating items. Instead, create the item as a plain dependent-record add under its parent group (the
 same "add under parent" approach used for the group bootstrap case above) — this correctly defaults
 `menu_item_type`, and lets `list_bar_item_id`, the target field (`tab_id`/etc.), and `order_no` all be
-set in the same staging session before committing. Treat `task_create_tile` as suspect for the identical
-reason until it's actually been verified — it follows the same zero-parameter creation pattern.
+set in the same staging session before committing.
+
+**Adding a `tile`** — the route differs by domain layout:
+
+- **(Indicium · split-domain)** add it under its `tile_grp` on the variant entity set
+  `tile.gui_modeler_tile`.
+- **(Indicium · single-domain)** the under-parent add answers `detail_nav_not_found`; add `tile` flat
+  with the full key (`model_id`, `branch_id`, `menu_id`, `tile_grp_id`, `tile_id`).
+
+If the listed route is refused, try the other. Don't use `task_create_tile`: on `menu_tab` for a
+list-bar menu it answered `403`, and the other bound variants have not been run.
+
+**Send `menu_item_type` before its target** (`0` → `tab_id`/`tab_variant_id`, `2` →
+`report_id`/`report_variant_id`, `3` → `task_id`/`task_variant_id`): a target field is hidden while
+`menu_item_type` points at another type (it starts at `0`), so a `report_id` or `task_id` sent first is
+refused with `field_not_editable` and stops the rest of the write. Likewise send `tab_variant_id` after
+`tab_id` — setting the table clears the variant. Tile badges have no entity or field in the write API;
+configure them in the Software Factory itself.
+
 **Also confirmed live** — another instance of the general "a multi-field write can silently drop one
-field" behavior in `thinkwise_sf_data_model`'s quirks section: `list_bar_item_description`
+field" behavior in `thinkwise-sf-data-model`'s quirks section: `list_bar_item_description`
 (and the same thing separately confirmed on `list_bar_grp_description`) can silently revert to `null`
 after a *later, otherwise-successful* patch in the same staging session (e.g. right after setting
 `list_bar_item_id`/`task_id`) — re-check the description field's value in the response after any
@@ -112,9 +133,9 @@ and equally valid, since it's a plain editable field.
 
 **Reassigning an item's group is not a field edit** — `list_bar_grp_id` (or `tile_grp_id`) is part of
 the item's composite key, so there is no in-place "move" write. The working sequence: delete the item
-from its current group (`task_delete_list_bar_item`/`task_delete_tile`), then add it fresh as a
-dependent record under the new parent group (the same approach used for creating an item at all — see
-Items above), reusing the **same** `list_bar_item_id`/`tile_id`, `tab_id`/`report_id`/`task_id`, and
+from its current group (`task_delete_list_bar_item`/`task_delete_tile`), then add it fresh in the new
+group by the same route used for creating an item at all (see Items above — for a `tile` that route
+depends on the layout), reusing the **same** `list_bar_item_id`/`tile_id`, `tab_id`/`report_id`/`task_id`, and
 `order_no` for continuity. This applies whenever reorganizing existing items into a new or different
 group — e.g. consolidating reference/lookup tables scattered across several subject groups into one
 dedicated group.
@@ -132,7 +153,14 @@ the verified specifics, the backfill recipe, and the final translation-completen
 `type_of_object = 12` (`list_bar`), **not** a `list_bar_grp` type — filter the placeholder scan on
 both. The `list_bar_item` rows got **no** `transl_object` at all (expected — an item falls back to
 its target object's label, and `list_bar_item_description` overrides that), so a residual
-`startswith(transl,'[')` count of zero after filling just the menu + group rows is "done".
+`startswith(transl,'[')` count of zero after filling just the menu + group rows is "done". For a
+tile menu: each `tile_grp` gets a translation object of type 87; a `tile` gets none (it shows its
+target's label).
+
+A group id doubles as its translation key, so a generic id (`general`, `other`) shares its label with
+every same-named group in the model — give it a distinguishing prefix when the label must differ.
+Deleting a menu, group or item leaves its `transl_object` rows behind; delete those too (see
+`thinkwise-sf-translations`).
 
 ### Cross-reference (read-only)
 

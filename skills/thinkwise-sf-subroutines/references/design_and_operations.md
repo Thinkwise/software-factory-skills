@@ -1,8 +1,10 @@
 # Subroutine design and operations
 
-Loaded on demand from `thinkwise_sf_subroutines`.
+Loaded on demand from `thinkwise-sf-subroutines`.
 
 ## Transaction behavior (`single_transaction`)
+
+`single_transaction` applies to procedures only; a function never gets the transaction wrapper.
 
 Enable **Atomic transaction** for a procedure when partial completion would violate integrity: creating
 a header and lines together, reserving stock and recording the movement, moving a workflow state and
@@ -20,7 +22,7 @@ order, transaction scope).
 When the request doesn't clearly imply whether partial completion would violate integrity — e.g.
 it's unclear whether the writes involved are genuinely linked or just happen to run together — ask
 the user rather than applying the heuristics above unilaterally
-(`thinkwise_sf_base`'s "Ask, don't default").
+(`thinkwise-sf-base`'s "Ask, don't default").
 
 **Never hand-roll `BEGIN TRAN`/`COMMIT`/`ROLLBACK` that conflicts with the platform's own atomic
 handling or a nested caller.** Logging inside a transaction rolls back with the failing work — capture
@@ -85,7 +87,7 @@ retry safely — split it.
 
 - Use business-specific domains, not generic strings/numbers — `customer_id` and `employee_id` may both
   be integers while expressing different contracts; don't reuse a domain merely because the underlying
-  SQL type matches (see `thinkwise_sf_control_procedures`'s domain-as-contract
+  SQL type matches (see `thinkwise-sf-control-procedures`'s domain-as-contract
   guidance, which applies identically here).
 - Pass stable keys, not display names, for entity identity.
 - Avoid dozens of loosely related flags — that's usually a sign the routine needs to be split, or the
@@ -141,7 +143,7 @@ usage, then retire the old contract deliberately — rather than mutating the ex
 Subroutines are strong unit-test targets — explicit parameters, explicit return contract. Full mechanics
 (the `unit_test_type_id = SUBROUTINE` / `type_of_object = 231` shape, `subroutine_id` as the driving key,
 `unit_test_subroutine_parmtr_input`/`_output` for mock parameter values, mock-data wiring for anything
-the body reads from a table) are covered in `thinkwise_sf_unit_tests` — load that skill
+the body reads from a table) are covered in `thinkwise-sf-unit-tests` — load that skill
 when proposing or building tests for a subroutine rather than re-deriving the entity shape here. At
 minimum, cover: the typical result, null inputs, boundary/min-max values, precision/rounding/overflow,
 empty and multi-row table results (for table returns), determinism/current-date/current-user

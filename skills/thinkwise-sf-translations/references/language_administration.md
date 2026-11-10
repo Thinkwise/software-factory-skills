@@ -1,6 +1,6 @@
 # Language administration — adding and back-filling application languages
 
-Loaded on demand from `thinkwise_sf_translations`.
+Loaded on demand from `thinkwise-sf-translations`.
 
 ## Multiple languages
 
@@ -13,14 +13,20 @@ translations for free. Manual translation via this skill is then only needed for
 ↔ base-model mapping and the full link → merge → generate recipe before doing any manual work on a
 newly-added `branch_appl_lang`.
 
-**`appl_lang`** (in a `manage_datamodel`-style domain, model-independent) is the global catalogue:
+**`appl_lang`** (model-independent) is the global catalogue:
 `appl_lang_id` (the IETF tag, e.g. `en-US`, key) and `appl_lang_description`. **`branch_appl_lang`**
-(in `manage_translation`) links one of those to a specific `(model_id, branch_id)` — it's how a branch
+links one of those to a specific `(model_id, branch_id)` — it's how a branch
 declares which languages it actually supports; keyed by `(model_id, branch_id, appl_lang_id)`, no
 translatable fields of its own beyond `generated_by_control_proc_id`. Query `branch_appl_lang` first
 to know how many languages a `help_text` decision (above) or a plural-review pass (above) actually
 needs to cover — don't assume the shipped six (`nl-NL`/`en-US`/`de-DE`/`fr-FR`/`es-ES`/`pt-PT`); the
 live `INSIGHTS` example has eight, including `it-IT`, `ja-JP`, and `pt-BR` instead of `pt-PT`.
+
+`transl_object_transl` rows exist only for the branch's `branch_appl_lang` languages — there is no row
+to write for any other language, whatever language the request or source material is in. **Write each
+row in the language of its own `appl_lang_id`**: an `nl-NL` row gets Dutch, an `en-US` row English.
+Never copy a source-language caption into another language's row, even when other rows in the model
+already hold one.
 
 **Cleaning up orphaned translation objects.** `branch_appl_lang` carries a zero-parameter bound task,
 `task_delete_unused_transl_objects` ("Delete unused translation objects — Delete unused translation
@@ -28,24 +34,29 @@ objects for the entire branch"): it deletes every `transl_object`/`transl_object
 row whose underlying model object no longer exists, branch-wide, in one call. The most common source of
 these orphans is renaming something — a rename task changes an object's id but doesn't clean up the
 *old* id's translation rows, which then sit around indefinitely holding stale bracket-placeholder text
-under an id nothing points to anymore. Reach for this task after any rename, or as a periodic branch-wide
-sweep, rather than hunting down a specific orphaned row by hand once you happen to notice one. **This
+under an id nothing points to anymore. Deletes leave orphans too: a deleted input constraint keeps its
+message's row (977), a deleted process flow keeps its own (29) and its actions' (30). Reach for this
+task after any rename or delete, or as a periodic branch-wide sweep, rather than hunting down a specific orphaned row by hand once you happen to notice one. **This
 task can be entirely invisible without the right Software Factory role/rights on the connected
 account**: `branch_appl_lang`'s bound-task list came back empty and a direct lookup by
 this task's exact name returned a hard "not found," indistinguishable from the task simply not
-existing, until the account's rights were adjusted — see `thinkwise_sf_data_model`'s
+existing, until the account's rights were adjusted — see `thinkwise-sf-data-model`'s
 role/rights quirk for the general version of this trap.
 
-**Generating translation objects.** New objects normally get a `transl_object` automatically on
-creation on `tab`'s own `task_create_tab_variant`, which carries a
-`generate_transl_object: Edm.Boolean` parameter controlling exactly this. For anything created without
-going through such a task (most commonly dynamic-model objects), call the relevant
+**Generating translation objects.** Most new objects get a `transl_object` automatically on creation;
+some creation tasks expose this as a parameter (`tab`'s own `task_create_tab_variant` carries
+`generate_transl_object: Edm.Boolean`). Not every type appears at add time, though — reported on SF
+2026.2: a new table variant (281) and a new group/tab label (33, created by setting
+`form_next_grp_label`, `grid_next_grp_label` or `next_tab_label`) get their `transl_object` only when
+the definition is generated. For those, generate the definition, run `task_generate_transl_objects`,
+then fill the new `[bracketed]` placeholders rather than looking for them right after the add. For
+anything created without going through such a task (most commonly dynamic-model objects), call the relevant
 `task_generate_transl_objects` variant afterward — it exists both as a generic bound task on
 `transl_object`/`transl_object_transl` and as dozens of narrower unbound variants scoped to a specific
 parent (`generate_transl_objects_help_index_help_index_id`,
 `generate_transl_objects_tab_check_constraint_check_constraint_id`,
 `generate_transl_objects_module_grp_module_grp_id`, and many more) — use
-`search_domain_capabilities` in `sf/manage_translation` to find the variant matching the parent object
+`search_domain_capabilities` in the translation domain to find the variant matching the parent object
 type actually in play rather than assuming the generic one always applies.
 
 **Confirm the row is actually missing before reaching for this recipe.** Whether a dependent-record-added
@@ -91,16 +102,15 @@ so when correcting a translation you intend to keep approved, set `approval_stat
 write. A stale "approved" count is a real risk signal, not just paperwork.
 
 **Fallback language.** Referenced in platform documentation (used when a user's own language has no
-translations in a given application) but its storage location was **not** found during live
-verification in either `sf/manage_translation` or `sf/manage_datamodel` — it did not surface as a
-field on `branch`, `appl_lang`, or `branch_appl_lang`, and no `sf_configuration`-style entity was
-reachable from either domain in this session. Confirm its actual entity/field (or that it's a setting
+translations in a given application) but its storage location is unknown — it is not a field on
+`branch`, `appl_lang`, or `branch_appl_lang`, and no `sf_configuration`-style entity was found in
+the translation or data-model domains (Indicium · split-domain). Confirm its actual entity/field (or that it's a setting
 only exposed in the Software Factory's own UI, with no exposed API surface) live before scripting
 anything that depends on it, rather than assuming a name from documentation alone.
 
 **Parameterized labels.** Per platform docs, `transl_form` (and the group/section label fields
 surfaced via `col`/`report_parmtr`/`task_parmtr`'s `form_next_grp_label`/`grid_next_grp_label`
-lookups above — see `thinkwise_sf_subject_components` for what those group/section
+lookups above — see `thinkwise-sf-subject-components` for what those group/section
 fields actually do on a Form or Grid) can carry `{placeholder}` tokens resolved with locale-aware
 date/number formatting.
 Not recursive, resolved exactly once, and an undefined/null parameter is silently dropped rather than

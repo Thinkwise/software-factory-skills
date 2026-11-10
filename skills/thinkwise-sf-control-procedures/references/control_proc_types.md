@@ -1,6 +1,6 @@
 # Static vs SQL-typed control procedures, generation strategies, and control_proc_type
 
-Loaded on demand from `thinkwise_sf_control_procedures`.
+Loaded on demand from `thinkwise-sf-control-procedures`.
 
 ## Static vs. SQL-typed control procedures
 
@@ -21,7 +21,7 @@ control-procedure code; dynamic→static materializes the query's current result
 trade-off (Static: explicit, one manual assignment per object, easy to reason about, more upkeep
 as objects multiply; SQL: automatic fan-out that tracks model changes, but the assignment logic
 itself becomes something to write and maintain) and let them choose, per "Ask, don't default" in
-`thinkwise_sf_base`'s "Shared conventions."
+`thinkwise-sf-base`'s "Shared conventions."
 
 ### Generation strategies (SQL-typed only)
 The `control_proc.strategy` enum: `delete` (0), `fully_managed` (1), `managed_via_staging_table` (2).

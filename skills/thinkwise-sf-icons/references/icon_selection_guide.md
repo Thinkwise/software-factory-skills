@@ -85,7 +85,7 @@ though all feel negative.
 
 **Task variants**: change the icon only when the variant represents a visibly different outcome or
 context. If a variant just prefills different parameters for the same action, keep the base task's
-icon and let translation communicate the distinction — see `thinkwise_sf_variants`.
+icon and let translation communicate the distinction — see `thinkwise-sf-variants`.
 
 ## Subject/table icons
 
@@ -183,7 +183,7 @@ cog alone doesn't say whether the section holds pricing config, integration sett
 Reinforce distinct outcomes: Continue/accept → check/arrow-forward; Retry → retry arrow; Return to edit
 → pencil/back; Cancel → X; Stop process → stop-square; Open result → external/open-document. Keep
 affirmative/negative response semantics consistent with process routing — the icon reinforces the
-translated option label, it never substitutes for it. See `thinkwise_sf_messages`.
+translated option label, it never substitutes for it. See `thinkwise-sf-messages`.
 
 ## Integration/automation icon concepts
 
@@ -194,7 +194,7 @@ JSON/XML transformation → braces/code/file-code; Authentication/token → key/
 stacked list/inbox; Synchronization → circular/bidirectional arrows; Failed integration →
 connector/cloud plus warning. Don't use a vendor logo unless the vendor identity actually matters to
 users, usage is permitted, and the flow specifically targets that vendor — generic technology icons
-stay stable when providers change. See `thinkwise_sf_web_connections`.
+stay stable when providers change. See `thinkwise-sf-web-connections`.
 
 ## Format, color, size, accessibility
 
@@ -232,8 +232,8 @@ Respect reduced-motion needs.
 
 Use an **icon** for stable object/action/status recognition, a **badge** for a dynamic count/small
 state indicator, **conditional formatting** for data-driven emphasis across cells/rows (see
-`thinkwise_sf_conditional_layouts`), a **message** for an outcome that needs explaining
-(see `thinkwise_sf_messages`), **label/help text** for precise or unfamiliar meaning, and
+`thinkwise-sf-conditional-layouts`), a **message** for an outcome that needs explaining
+(see `thinkwise-sf-messages`), **label/help text** for precise or unfamiliar meaning, and
 an **image** for actual content (a product photo, a signature). Don't use an icon as a miniature
 dashboard, encode a numeric count into a static image, or replace a validation message with a red
 symbol and no explanation.

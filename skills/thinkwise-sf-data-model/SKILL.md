@@ -1,14 +1,14 @@
 ---
 name: thinkwise-sf-data-model
-description: Reference guidelines for designing and naming domains, tables, and columns in a Thinkwise Software Factory data model — naming conventions, entity classification, column order, data types, references, and menu placement. Use whenever designing or reviewing a data model, or making sf_mcp calls that create or inspect domains, entities, columns, or references, to check names, types, and structure against these conventions before proposing or executing changes.
+description: Reference guidelines for designing and naming domains, tables, and columns in a Thinkwise Software Factory data model — naming conventions, entity classification, column order, data types, references, and menu placement. Use whenever designing or reviewing a data model, or making MCP connector calls that create or inspect domains, entities, columns, or references, to check names, types, and structure against these conventions before proposing or executing changes.
 ---
 
 # Thinkwise Data Modeling Guidelines — Domains, Tables, and Columns
 
 Reference conventions for the Thinkwise Software Factory data model, compiled from the official
 Thinkwise data modeling guidelines (docs.thinkwisesoftware.com) and Thinkwise Community articles.
-Apply these when designing a new data model, reviewing an existing one, or using sf_mcp tools that
-touch domains, entities, or columns.
+Apply these when designing a new data model, reviewing an existing one, or using an MCP connector
+with Software Factory access to touch domains, entities, or columns.
 
 ## Bulk-importing a whole data model in one call — check for a custom task first
 
@@ -24,6 +24,12 @@ shape, and fall back to the normal per-object flow if it doesn't.
 - **Split into subnames with underscores** (`sales_order_line`, not `salesorderline` or `SalesOrderLine`).
 - **Avoid abbreviations** — spell words out fully, except where a platform name-length limit forces it, or for the conventional exceptions `id` and `no`.
 - **No meta-information in the name** — don't encode data type, length, or table membership into the name itself.
+- **Tables, tasks, reports, and process flows share one id namespace** — never give two of them the
+  same id. The Software Factory derives program objects from the id (`layout_<id>` for each table,
+  task, and report), so a report named exactly like a table broke LAYOUTS generation for the whole
+  model; a flow with a task's id is flagged by `val_process_flow_name_not_unique`. Give reports the
+  prefix `rpt_` (`rpt_customer_overview`) and process flows the suffix `_flow`
+  (`release_order_flow`), unless the model already follows its own distinguishing convention.
 - **Prefer reusing an existing, already-reviewed naming word component over inventing a new one when
   an equivalent term already exists.** Every new distinct word introduced into a table/column/domain
   name enters its own review step (a Software Factory validation tracks unreviewed naming components)
@@ -32,7 +38,12 @@ shape, and fall back to the normal per-object flow if it doesn't.
   the label-reuse rule under "Form & grid groups" below.
 - **Never name a column or domain after a SQL reserved/keyword-adjacent word** — `level`, `year`,
   `order`, `group`, `date`, `time`, `table`, `view`, `index`, `key`, `value`, `user`, `values`,
-  `check`, `default` — even when the target RDBMS happens to tolerate it unquoted. These names get
+  `check`, `default`, `integer`, `url` — even when the target RDBMS happens to tolerate it unquoted.
+  The same applies to tables, task parameters, subroutines, and indexes. The Software Factory checks
+  only domain names against the platform's keyword list (`prog_lang_key_word`, warning
+  `val_dom_reserved_keyword`), and on PostgreSQL that list is empty — so check every name against the
+  reserved words of both SQL Server and PostgreSQL yourself, also on a single-platform branch, so the
+  model can move platforms. These names get
   woven directly into generated SQL identifiers, and hitting one live (both `level` as a column and
   `year` as a domain, in the same model) surfaced the problem only once hand-written SQL referencing
   them was deployed, not at generation time. If a column/domain already has one of these names, use
@@ -40,11 +51,20 @@ shape, and fall back to the normal per-object flow if it doesn't.
   rename task only updates model metadata and structural DDL; it does **not** rewrite any
   hand-authored control-procedure/view/task template text that already referenced the old name by
   string, so grep every template referencing the old identifier and update it by hand afterward, then
-  regenerate. **It also leaves the old id's translation object behind as an orphan** — the renamed
+  regenerate. `task_rename_dom`/`task_rename_tab`/`task_rename_col` are bound to the record they rename
+  and take only `to_dom_id`/`to_tab_id`/`to_col_id` (`from_*` is filled from the record). They carry
+  along: for a domain, its columns and task parameters; for a table, its columns, indexes (index id
+  too), prefilters, and `tab_task` rows; for a column, its reference column pairs and index columns.
+  They don't touch SQL text (templates, prefilter queries, view code, calculated-column queries),
+  `task_parmtr_id`s, or translations. **A table that is the source or target of a reference cannot be
+  renamed** (422): read its references, delete them, rename, then recreate each with `task_create_ref`
+  using the same settings (the new `ref_id` follows the new names). A table or column rename also
+  records a manual data-migration mapping (old → new) automatically — see `thinkwise-sf-deployment`'s
+  "Data migration mapping". **It also leaves the old id's translation object behind as an orphan** — the renamed
   column/domain gets a fresh `transl_object`/`transl_object_transl` under its new id, but the old id's
   rows aren't deleted, just no longer reachable from anything live. Run
   `task_delete_unused_transl_objects` (bound to `branch_appl_lang` — see
-  `thinkwise_sf_translations`) afterward as a branch-wide cleanup, rather than
+  `thinkwise-sf-translations`) afterward as a branch-wide cleanup, rather than
   leaving stale rows to accumulate.
 
 ## Language of names
@@ -92,8 +112,10 @@ naming and classification above.
 
 Set `tab.icon_id` to a suitable icon from the repository as part of creating the table — it's the
 table's own icon wherever it's shown (menu item, document, tree/detail navigation), not a cosmetic
-extra to skip. Follow `thinkwise_sf_icons` for how to search/reuse the repository and
-what to do if nothing fits (ask the user, don't guess or leave it blank). A view used as a business work
+extra to skip. Follow `thinkwise-sf-icons` for how to search/reuse the repository and
+what to do if nothing fits (ask the user, don't guess or leave it blank). The icon name alone fails the
+look-up (`lookup_not_found`, the display is `title.ext`): query `icon?$select=icon_id,icon_title` and send
+the numeric `icon_id` with `value_kind: "data"`. A view used as a business work
 queue should get the work concept (e.g. "orders to release" → order/check), not a generic table/view
 icon — see that skill's subject-icon guidance.
 
@@ -113,7 +135,7 @@ option per table, so the user can tick which get added and leave the rest untick
 they're only ever reached through a parent's screen, or aren't ready for end users yet) rather than
 adding all of them, or guessing which "obviously" belong.
 
-For the ones the user picks, follow the `thinkwise_sf_menus` skill for the actual
+For the ones the user picks, follow the `thinkwise-sf-menus` skill for the actual
 menu/group/item work — including its own golden rule to confirm menu type and group placement, and to
 create a new menu (rather than assuming an existing one fits) if the model doesn't have one yet for the
 relevant platform.
@@ -127,7 +149,8 @@ relevant platform.
 - **One fact per column, atomic values only** — don't pack multiple values into a delimited string.
 - **Prefer NOT NULL with a sensible default** over nullable columns, unless the absence of a value is itself a meaningful business state.
 - **A column's default value must match its data type and, if backed by a domain with elements, be a
-  valid element (or within the domain's min/max range for a ranged domain).** This is checked by a
+  valid element's `db_value` (not its `elemnt_id`), or within the domain's min/max range for a ranged
+  domain.** This is checked by a
   Software Factory validation, not enforced at write time — `stage_resource`/`patch_resource` will
   commit a default value that's the wrong type or out of range without complaint, and it only surfaces
   later as a validation error. Double-check a newly-set default against its column's actual domain/type
@@ -135,8 +158,13 @@ relevant platform.
 - **Before finalizing a new column's name, check its translated label doesn't collide with another
   column's label already in use on the same table** — two columns with different ids but identical
   rendered captions is flagged by a Software Factory validation and confuses a user reading the
-  form/grid.
-- **A column can be calculated/expression-backed (`calculated_field_type` non-zero) instead of physically stored** — it reads back identically to a real column on a normal query, with no visible difference. See "Calculated columns" below for the different kinds and when (rarely) to reach for one; this matters most when writing hand-written SQL against the table directly (control procedures, migrations) — see `thinkwise_sf_control_procedures`'s "Calculated columns are not physical" note before including such a column in an insert/update/merge statement.
+  form/grid. A column's translation is keyed by `col_id` alone and shared by every table with a column
+  of that id, so check it per language. The typical clash is `x_id` next to `x_name`, both rendering
+  as "X": give one its own caption (e.g. "X code") or hide the id.
+- **A table that holds its own values (anything but a pure link table) has at least one mandatory
+  column besides its key and foreign-key columns** — otherwise a row can be saved with nothing in it
+  but its identity.
+- **A column can be calculated/expression-backed (`calculated_field_type` non-zero) instead of physically stored** — it reads back identically to a real column on a normal query, with no visible difference. See "Calculated columns" below for the different kinds and when (rarely) to reach for one; this matters most when writing hand-written SQL against the table directly (control procedures, migrations) — see `thinkwise-sf-control-procedures`'s "Calculated columns are not physical" note before including such a column in an insert/update/merge statement.
 
 ## Data sensitivity classification
 
@@ -146,8 +174,10 @@ infer are *likely* sensitive from their name/domain. Decide it deliberately when
 the same as its domain/type: for an obviously personal or confidential field (name, email address,
 national id, financial account, health data) set the classification explicitly rather than leaving it
 unset; for a column where sensitivity genuinely isn't obvious, ask the user rather than guessing — this
-has real compliance consequences, not just a lint warning. Confirm the exact field/enum name live via
-the column entity's own metadata before writing to it.
+has real compliance consequences, not just a lint warning. Set it with `task_set_data_sensitive`,
+bound to `col_data_sensitivity_overview` (key `tab_id`, `col_id`): `data_sensitive` no 0, yes 1,
+undecided 2; with yes, `anonymize_type` is mandatory (sample data set 0, random value 1,
+expression 2). A foreign-key column follows the classification of the key it references.
 
 ## Calculated columns
 
@@ -188,7 +218,8 @@ plan (its group, its order, its sort/filter behaviour) in the write that creates
 These are the per-column presentation settings, all set in the same write that creates the column
 (see the rule above). The decisions that matter:
 
-- **Grid visibility** — set `grid_type_of_col` (`editable`/`read_only`/`hidden`) deliberately; the
+- **Grid visibility** — set `grid_type_of_col` (`editable` 0 / `read_only` 1 / `hidden` 3; value 2
+  is refused) deliberately; the
   default behaves as `editable`, so every column shows unless you say otherwise. A grid should show
   only what a user needs at a glance. Hide surrogate keys, audit timestamps, and fields relevant to
   only a subset of rows — those belong on the form. Make look-up and status columns `read_only` when
@@ -208,8 +239,8 @@ These are the per-column presentation settings, all set in the same write that c
   `sort_order`, `allow_sort`): a natural order column, a name/code, or a date, often descending.
 - **Search and filter** — `visible_for_search`/`search_order_no`/`search_condition`/
   `include_in_global_filter` and `visible_for_filter`/`filter_order_no`/`filter_condition`.
-  `visible_for_search` and `visible_for_filter` share the same three-way enum:
-  `always` / `extended` / `never`.
+  `visible_for_search` and `visible_for_filter` share the same three-way enum — send the number:
+  `always` 0 / `extended` 1 / `never` 2. `sort_order` is `asc` 0 / `desc` 1.
 
 **Before choosing any of this, name the subject's job** — find-and-open, work queue, compare records,
 maintain a record, review exceptions, analyze totals, or select-in-a-lookup each want a different
@@ -244,6 +275,12 @@ must be part of `source_tab_id`'s primary key. Look-up renders on the target, de
 A wrong direction is accepted at write time with no error, surfacing later as the validation
 *"foreign key reference with integrity does not contain the full primary key of the source table"* —
 which always means the two are swapped.
+
+**Creating one (Indicium MCP):** stage a `ref` add under `branch`; send `source_tab_id`, then
+`target_tab_id` (`ref_id` is derived from them plus `ref_add` and is read-only), commit, then add one
+`ref_col` per join column under that `ref`. `ref.order_no` is hidden on add and reads back 0 — set it
+in a later edit. The alternative is the bound task `task_create_ref`, bound to `ref` (not to `branch`),
+which takes the same tables plus `source_col_id_n`/`target_col_id_n`/`new_col_n` parameters.
 
 **Self-referencing FKs can't cascade on SQL Server**: set `on_delete`/`on_update` to `no_action` and
 implement any reparenting in a control procedure.
@@ -286,7 +323,7 @@ has a status column, and never without confirming with the user first.**
 
 This section only decides *whether* one is warranted. For the mechanics — field reference, the
 condition enum, themes, accessibility — and the full "Should this object get one?" test, see
-`thinkwise_sf_conditional_layouts`.
+`thinkwise-sf-conditional-layouts`.
 
 ## Translating new objects
 
@@ -295,7 +332,7 @@ skill gets a translation object auto-generated with placeholder text — literal
 ID wrapped in brackets (`[sales_order_line]`, `[customer_code]`) — which is what actually renders
 in the running application until it's translated. Creating the object is not the last step for
 anything user-facing: after modeling a new table/column/domain element (or a batch of them), follow
-the `thinkwise_sf_translations` skill to find and fill in these
+the `thinkwise-sf-translations` skill to find and fill in these
 placeholder-marked objects, the same way "Exposing new tables on a menu" above is a required
 follow-up, not an optional polish pass.
 
@@ -308,26 +345,41 @@ touched this session, since a narrower scan misses pre-existing gaps the task ha
 passing:
 
 ```
-/transl_object_transl?$filter=model_id eq '<model>' and branch_id eq '<branch>' and startswith(transl,'[')&$select=type_of_object,transl_object_id,transl
+/transl_object_transl?$filter=model_id eq '<model>' and branch_id eq '<branch>' and (startswith(transl,'[') or startswith(transl_form,'[') or startswith(transl_grid,'[') or startswith(transl_plural,'[') or startswith(transl_card_list,'['))&$select=type_of_object,transl_object_id,transl,transl_form,transl_grid,transl_plural,transl_card_list
 ```
 
 Zero rows is the actual definition of "done," not "I translated the things I remember creating."
-Every skill that creates translatable objects (`thinkwise_sf_views`,
-`thinkwise_sf_tasks`, `thinkwise_sf_menus`, and any plan produced by
-`thinkwise_sf_build_planner`) points back to this query as its own final gate rather
+On a shared branch the query also returns other people's placeholders: fill your own, and report the
+rest to the user instead of changing them.
+Every skill that creates translatable objects (`thinkwise-sf-views`,
+`thinkwise-sf-tasks`, `thinkwise-sf-menus`, and any plan produced by
+`thinkwise-sf-build-planner`) points back to this query as its own final gate rather
 than repeating it — treat this section as the canonical source for it.
 
 ## Integrity, structure, and consistency
 - **Enforce referential integrity at the database level.** Enable "check integrity" on every foreign key reference unless there's a specific reason not to (e.g. deliberately historical/soft references, or a reference into a view — see "References (foreign keys)" above, where `check_ref = false` is the norm since a view carries no physical FK constraint) — relying on application logic alone invites orphaned records the moment something bypasses the normal flow.
 - **Don't add trace/audit columns (created/modified by + date) to a table on your own initiative.** Thinkwise ships a standard "trace fields" Thinkstore solution for exactly this purpose, and hand-modeling equivalent columns duplicates/bypasses it. Only add them if the user specifically asks for created/modified-by-and-date tracking on a table — and even then, don't just model the columns: ask the user to confirm whether they actually want manually-added columns, or would rather use the trace fields Thinkstore solution instead. Only proceed with manual columns once they've confirmed that's what they want.
+- **Prefer a check constraint or a domain input constraint over hand-written validation code for a
+  simple rule:**
+  - `tab_check_constraint` (added under `tab`): a condition on **the table's own columns only**,
+    column names in double quotes, no alias (e.g. `"threshold_percentage" between 0 and 100`). The
+    Software Factory writes the per-database copy itself. It gets no translation object unless
+    `generate_transl_object` is set.
+  - `dom_input_constraint` (added under `dom`): `constraint_type` SQL 0 / regular expression 1;
+    `constraint_event` immediate 0 (regular expression only), on change 1, on commit 2; `order_no`.
+    A SQL (type 0) constraint refers to the value as `t1.<dom_id>`; type 1 is a regular expression. It
+    checks user and API input only — never existing data or values set by logic. Its translation
+    object (type 977) is the message the user sees, so fill it like any other new translation.
 - **Be deliberate about triggers.** Treat them as a last resort for enforcing data rules — look at control procedures, defaults, integrity checks, or expression columns first, since triggers hide logic outside the model and complicate generated code and debugging.
 
 ## When to use a unique index
-Thinkwise's Software Factory has no separate "unique constraint" — uniqueness outside the primary key is always a **unique index** (Datamodel → Tables → Indexes → check "Unique"). **The primary key itself does not need one of these index rows at all** — it's established purely by each key column's own `primary_key` flag; verified live across a whole real model, zero rows anywhere used `indx.primary_key = true`. Don't model an `indx`/`indx_col` row just to represent a table's primary key — reserve `indx` for genuinely additional secondary/unique/non-clustered indexes.
+Thinkwise's Software Factory has no separate "unique constraint" — uniqueness outside the primary key is always a **unique index** (Datamodel → Tables → Indexes → check "Unique"; the field is `indx.unique_indx`). **The primary key itself does not need one of these index rows at all** — it's established purely by each key column's own `primary_key` flag; verified live across a whole real model, zero rows anywhere used `indx.primary_key = true`. Don't model an `indx`/`indx_col` row just to represent a table's primary key — reserve `indx` for genuinely additional secondary/unique/non-clustered indexes.
 - **Use one whenever a column (or combination) is a natural/business key that isn't the primary key** — e.g. email address, customer code, an order number within a scope — so the database rejects duplicates rather than relying on application-level checks alone.
 - **Don't duplicate the primary key.** A unique index matching the PK's columns exactly is redundant, flagged by a Software Factory validation (2023.1+), and can create FK-dependency issues that make it hard to drop or regenerate.
 - **Prefer a unique index over a code-level "no duplicates" check** for: consistent translated error messages from the platform (vs. raw SQL Server constraint text), and the ability to filter out NULLs so optional-but-must-be-unique-when-present columns behave correctly.
 - **Regenerate and execute after adding one** — a unique index has no effect until the source is generated and executed against the database (a common cause of "it still lets me create duplicates").
+- **Set `include_in_copy = false` on every unique-index column that is not a primary-key or foreign-key column** — otherwise copying a record copies the unique value and the copy breaks the index. The same goes for a look-up display column made unique this way.
+- **Scripting indexes:** `indx_id` is unique per branch, not per table, so include the table name in it. An index without columns is accepted, so verify each index has its `indx_col` rows; `indx_col` refuses a column of another table (403). A filtered/partial index keeps its condition in `indx_where_clause`. Don't hand-create `fk_<ref_id>` indexes on a model whose template generates them in a control procedure (e.g. `pg_create_indexes`).
 
 ## When to add a (non-unique) index
 Indexes are the biggest single performance lever, and every one of them slows each insert, update, and delete and uses storage. This section is the canonical index guidance; other skills point here.
@@ -342,9 +394,9 @@ Indexes are the biggest single performance lever, and every one of them slows ea
 
 Scripting domains/tables/columns/references (and more) through a metadata/staging-style write API,
 rather than the Software Factory UI directly, surfaces a set of verified-live quirks — enum keys
-rejected in favor of raw numeric values, individual fields silently dropped from combined writes,
-child rows with their own hidden NOT-NULL order-number fields, introspection payload size limits,
+rejected in favor of raw numeric values, a combined write stopping at the first refused field,
+fields that only open once another field has a value, child rows with their own hidden NOT-NULL order-number fields, introspection payload size limits,
 parent-resolution failures on weak entities, translatable-field writes rejected pre-commit,
-unscoped queries matching the wrong model/branch, screen-type creation being UI-only, and blanket
+unscoped queries matching the wrong model/branch, screen types that must be built and checked by hand, and blanket
 write rejections that are actually a role/rights gap. See `references/api_write_quirks.md` for the
 full list before scripting bulk changes through this kind of API.

@@ -1,6 +1,6 @@
 # Column presentation — grid visibility, form/grid groups, sort, search, filter
 
-Loaded on demand from `thinkwise_sf_data_model`.
+Loaded on demand from `thinkwise-sf-data-model`.
 
 ## Grid column visibility
 
@@ -63,7 +63,7 @@ exist to back the query or a reference), on all three of `type_of_col`/`grid_typ
 `form_type_of_col`, and make a column `editable` only where a user or the view's handler
 genuinely writes it. `mand` follows the same line: it is only meaningful on an editable view
 column, so default view columns to `mand = false` and set `mand = true` only where the column
-is both editable and required. Full detail in `thinkwise_sf_views`'s
+is both editable and required. Full detail in `thinkwise-sf-views`'s
 "Column editability and mandatory" section.
 
 ## Form & grid groups
@@ -79,7 +79,7 @@ different mechanism from grouping grid *rows* into a collapsible tree by column 
 row grouping and aggregation" below for that.
 
 **Mechanism** — two independent pairs of fields on `col` (the same pattern exists on `task_parmtr`
-for task forms, see `thinkwise_sf_tasks`):
+for task forms, see `thinkwise-sf-tasks`):
 
 | Context | "starts a new group" flag | Group label | Section-break variant |
 |---|---|---|---|
@@ -98,9 +98,14 @@ call, the label write can be rejected because the field became non-editable part
 that same call. Clear the old mechanism's flag first (as its own write), then set the new mechanism's
 flag and label in a second write, rather than attempting the swap in one call.
 
-**When to use them**: any table beyond a handful of columns, or with visually distinct concerns
+**When to use them**: any form with more than five visible fields, or with visually distinct concerns
 (identity vs. status vs. settings vs. description) — group them. Don't group a table with only 2-3
 closely related columns; there's nothing for a heading to separate.
+
+**Once a form has groups, no visible field may come before the first group.** Either let the first
+visible field start a group (`form_field_in_next_grp = true` plus `form_next_grp_label`, e.g. a
+`general` group over the record's own id and leading display-name field), or hide that field on the
+form (`form_type_of_col` hidden) — an id shown next to its own name is a typical one to hide.
 
 **Which columns to bundle together**:
 - First group holds the identifying/core descriptive columns (conventionally labeled `general`).
@@ -125,9 +130,10 @@ row per language, shared and reused by every table that uses that label, already
 languages. Reusing an existing label costs zero additional translation work. Inventing a new
 spelling/casing variant (`"Status"` vs `"status"` vs `"state"`) creates a brand-new untranslated
 object that has to go through the whole translation/approval cycle for no modeling benefit. After
-introducing a genuinely new label, follow `thinkwise_sf_translations` to fill
+introducing a genuinely new label, follow `thinkwise-sf-translations` to fill
 in and approve it — the same standing requirement as any other new translatable object (see
-"Translating new objects" above).
+"Translating new objects" above). A new group label's translation object (`type_of_object` 33) only
+appears once the definition is generated, so it can't be found or filled right after the column write.
 
 ### Keep the group plan current when the table changes later
 
@@ -141,7 +147,7 @@ afterward:
   the new column ungrouped at the end by default. Match it to whichever existing group covers the
   same concept, setting its order/group flags in the same write that creates the column. If no
   existing group is an obvious semantic fit, ask the user which group it belongs in (or whether it
-  needs a new one) — see `thinkwise_sf_base`'s "Ask, don't default" rule — rather
+  needs a new one) — see `thinkwise-sf-base`'s "Ask, don't default" rule — rather
   than guessing.
 - **Retrofitting groups onto a table that already has ungrouped columns** — check the *first* visible
   column too, not just the ones after the first existing group starts. It's easy to group everything

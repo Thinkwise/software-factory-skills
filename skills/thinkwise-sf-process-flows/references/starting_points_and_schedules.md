@@ -1,6 +1,6 @@
 # Process flow starting points, schedules, and canvas alignment
 
-Loaded on demand from `thinkwise_sf_process_flows`.
+Loaded on demand from `thinkwise-sf-process-flows`.
 
 ## Schedules
 
@@ -12,7 +12,8 @@ Weak entity under `process_flow`. Mandatory: `model_id`, `branch_id`, `process_f
 Day-of-week flags (`monday`…`sunday`) are hidden and only relevant when `recurrence_type=weekly`;
 month-position fields only matter when `recurrence_type=monthly`. Minimal daily-at-a-fixed-time
 schedule: `{model_id, branch_id, process_flow_id, schedule_id, occur_once: "02:00:00"}` with
-everything else left at its default.
+everything else left at its default. `occur_once` and the other schedule times are stored and shown as
+**UTC** — convert a local time before writing it, or tell the user which zone it is in.
 
 Schedules only make practical sense once the flow qualifies as a system flow (every action
 non-interactive) — a schedule on a flow that still has an interactive action has nothing meaningful

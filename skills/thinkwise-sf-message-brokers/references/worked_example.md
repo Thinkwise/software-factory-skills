@@ -43,7 +43,7 @@ furniture or a wall.
 
 For the SQL patterns of the receiving tasks (upsert on first contact, JSON booleans as text, unpacking
 a raw payload with `openjson`), see `subscriptions.md`; for matching a result to its command by
-correlation id, see `publishing.md`. Write the SQL itself per `thinkwise_sf_control_procedures`.
+correlation id, see `publishing.md`. Write the SQL itself per `thinkwise-sf-control-procedures`.
 
 ## Checks that proved the setup end to end
 

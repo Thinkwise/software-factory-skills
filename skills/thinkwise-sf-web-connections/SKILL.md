@@ -10,35 +10,33 @@ authentication scheme (`web_connection`), with one or more named **endpoints** u
 (`web_connection_endpoint` — method, path, body). It replaces the legacy `http_connector` process
 action, which re-enters URL/method/headers/auth on every single process action with no reuse, no
 override mechanism, and no built-in response parsing. For event-style integration over MQTT
-(publish/subscribe instead of request/response), see `thinkwise_sf_message_brokers`.
+(publish/subscribe instead of request/response), see `thinkwise-sf-message-brokers`.
 
-Follow the connector's standard discovery→act flow; never guess entity/field/enum names — confirm
-them via `get_entity_definition` first. **Two domains are involved, and mixing them up is the most
-likely mistake:**
+**Domain:** split-domain instances use two — `sf/manage_webconnections` for the connection graph and
+`sf/manage_process_flows` for the process-flow side; single-domain `sf/software_development` holds
+both; otherwise find them with `search_domain_capabilities`. The work has two halves:
 
-- **`sf/manage_webconnections`** — the connection/endpoint object graph itself: `web_connection`,
-  `web_connection_endpoint` and every child (parameters, headers, query strings, form fields, output
-  parameters), plus `oauth_server`. Build the connection here.
-- **`sf/manage_process_flows`** — where the `web_connection` process action lives, plus its
-  input/output *binding* entities (`process_action_web_connection_endpoint_parmtr_input_parmtr`,
+- **The connection graph** — `web_connection`, `web_connection_endpoint` and every child (parameters,
+  headers, query strings, form fields, output parameters), plus `oauth_server`. Build the connection
+  here first.
+- **The process-flow side** — the `web_connection` process action plus its input/output *binding*
+  entities (`process_action_web_connection_endpoint_parmtr_input_parmtr`,
   `process_action_web_connection_parmtr_input_parmtr`,
   `process_action_modeler_web_connection_endpoint_output`). Wire the already-built connection into a
-  flow here — see `thinkwise_sf_process_flows`, which this skill complements rather than
+  flow here — see `thinkwise-sf-process-flows`, which this skill complements rather than
   duplicates.
 
-> **Correction to an earlier finding.** An earlier pass at the process-flows skill inspected
-> `web_connection`/`web_connection_endpoint` only through `sf/manage_process_flows` (where a process
-> action merely *references* a connection/endpoint by id) and concluded the objects exposed "almost no
-> writable configuration." That conclusion was scoped to the wrong domain. Read directly from
-> `sf/manage_webconnections`, both entities carry their full configuration — `base_url`,
-> `authentication_type`, credentials, `endpoint_http_method`, `endpoint_path`, `type_of_body`,
-> `endpoint_body`, etc. (see field tables below). Building a web connection from scratch is fully
-> modeled through this API; it does not require the Software Factory's own UI.
+> **(Indicium · split-domain)** `sf/manage_process_flows` also exposes `web_connection`/
+> `web_connection_endpoint`, but only as the object a process action references by id, with almost no
+> writable configuration. Read and write them in `sf/manage_webconnections`, where both carry their
+> full configuration — `base_url`, `authentication_type`, credentials, `endpoint_http_method`,
+> `endpoint_path`, `type_of_body`, `endpoint_body`, etc. Building a web connection from scratch is fully
+> possible through the write API; it does not require the Software Factory's own UI.
 
 ## Entity map
 
 ```
-web_connection                                    (sf/manage_webconnections)
+web_connection                                    (connection graph)
 ├─ web_connection_parmtr                           connection-wide {param}, reused across endpoints
 ├─ web_connection_configuration(_overview)          per runtime-configuration / per-app override
 └─ web_connection_endpoint                          one HTTP call shape
@@ -48,9 +46,9 @@ web_connection                                    (sf/manage_webconnections)
    ├─ web_connection_endpoint_form_field              multipart/form fields, incl. file uploads
    └─ web_connection_endpoint_output_parmtr           value extracted from the response
 
-oauth_server                                       (sf/manage_webconnections, branch-scoped, standalone)
+oauth_server                                       (connection graph, branch-scoped, standalone)
 
-process_action (process_action_type = web_connection, 602)     (sf/manage_process_flows)
+process_action (process_action_type = web_connection, 602)     (process-flow side)
 ├─ process_action_web_connection_endpoint_parmtr_input_parmtr   endpoint input → process variable / literal
 ├─ process_action_web_connection_parmtr_input_parmtr            connection input → process variable / literal
 └─ process_action_modeler_web_connection_endpoint_output        endpoint output → process variable
@@ -66,14 +64,14 @@ referenced by several web connections' `oauth_server_id`.
 **Every child entity is a weak entity under its parent** — stage with `parent_entity_set` set to the
 immediate parent (`web_connection` for `web_connection_endpoint`/`web_connection_parmtr`;
 `web_connection_endpoint` for everything under an endpoint) and `parent_key` set to the parent's full
-composite key, the same pattern used throughout the Software Factory API (see
-`thinkwise_sf_process_flows` for the general weak-entity staging convention).
+composite key (see `thinkwise-sf-base` for the general weak-entity staging convention). Exception:
+`web_connection_endpoint_parmtr` — see `references/parameters_and_parsing.md`.
 
 ## Golden rule: confirm the integration design before building
 
 A web connection encodes decisions that are awkward to unwind once endpoints and process flows
 depend on them — which auth mechanism the target API demands, where its credentials live, and how
-each response gets parsed. Apply the mcp_base skill's "Shared conventions" (confirm-before-mutate,
+each response gets parsed. Apply `thinkwise-sf-base`'s "Shared conventions" (confirm-before-mutate,
 ask-don't-default) at the grain of this specific integration, before step 1 of Build order below.
 Confirm with the user:
 
@@ -95,21 +93,22 @@ the design, not implementation mechanics.
 
 1. `web_connection` — base URL, auth type, credentials (or `oauth_server_id` if auth type = OAuth)
 2. `oauth_server`, only if auth type = OAuth and one doesn't already exist for this API — see
-   `references/oauth.md`'s API-gap note before assuming this is fully configurable via this API
+   `references/oauth.md`'s field-exposure note before assuming this is fully configurable via the API
 3. `web_connection_parmtr`, only if a value needs to be shared across multiple endpoints (e.g. a
    tenant id used in several paths)
 4. `web_connection_endpoint` rows — one per distinct API call
 5. Per endpoint: `web_connection_endpoint_parmtr`, `_query_string_parmtr`, `_request_header`,
-   `_form_field` (multipart only), `_output_parmtr`
+   `_form_field` (multipart only), `_output_parmtr` — add every `{param}` used in the path/body as its
+   own parameter row; a token in the text does not create one
 6. Wire into a process flow: a `web_connection`-type `process_action`, then the input/output binding
-   rows — see `thinkwise_sf_process_flows`
+   rows — see `thinkwise-sf-process-flows`
 7. Optional: runtime-configuration / IAM per-application overrides, encrypted credential storage
 
 ## 1–3 · Connection, authentication, and endpoints
 
 Build the graph in order: **connection → authentication → endpoints → parameters**, and build all of
-it in `sf/manage_webconnections` *before* touching the process-flow binding entities — a process
-action cannot bind to an endpoint that doesn't exist yet.
+it *before* touching the process-flow binding entities — a process action cannot bind to an endpoint
+that doesn't exist yet.
 
 One connection holds the base URL and auth; one endpoint per operation (method + relative path).
 OAuth is configured on a separate `oauth_server` object referenced by the connection — see
@@ -129,21 +128,27 @@ response-parsing path syntax, and handling arrays and nested objects), read
 
 ## Wiring into a process flow
 
-Covered in depth by `thinkwise_sf_process_flows`; summarized here for the parts specific
+Covered in depth by `thinkwise-sf-process-flows`; summarized here for the parts specific
 to a web connection.
 
-Add a `process_action` of type **`web_connection`** (602) in `sf/manage_process_flows`, with
-`web_connection_id` and `web_connection_endpoint_id` both mandatory. The modeler then pre-seeds one
+Add a `process_action` of type **`web_connection`** (602), with
+`web_connection_id` and `web_connection_endpoint_id` both mandatory — send the endpoint after the
+connection, since setting `web_connection_id` clears it (see `thinkwise-sf-process-flows`). The
+modeler then pre-seeds one
 binding row per input/output parameter that endpoint (and any connection-level parameters it uses)
 exposes — same pre-seeded, edit-only pattern as every other action type's I/O (query the placeholder
 row first, then `edit` it; `add` against these child entities is rejected).
 
-**Inputs** — `process_action_web_connection_endpoint_parmtr_input_parmtr` (per endpoint parameter) and
-`process_action_web_connection_parmtr_input_parmtr` (per connection-level parameter used by this
-endpoint):
+**Inputs** — map an endpoint input by editing its pre-seeded
+`process_action_modeler_web_connection_endpoint_input` row (one per endpoint parameter, under the
+process action); the edit creates the stored `process_action_web_connection_endpoint_parmtr_input_parmtr`
+row. Connection-level parameters used by this endpoint are stored in
+`process_action_web_connection_parmtr_input_parmtr`. On each:
 
 - `assignment_method` — `variable` (pull from a `process_variable_id`) or `literal_constant` (a fixed
   `constant_value` typed into the model).
+
+Read the stored `..._parmtr_input_parmtr` row back to confirm the mapping.
 
 **Outputs** — `process_action_modeler_web_connection_endpoint_output`: one row per endpoint output
 parameter, each with a `process_variable_id` to receive the extracted value.
@@ -153,7 +158,7 @@ If the API needs a bearer token obtained via OAuth, precede the `web_connection`
 the web connection's `bearer_token` input (only reachable this way if `authentication_type` = Bearer
 token with the token supplied at run time, or via `use_deferred_credentials`) — or set
 `authentication_type = oauth` directly on the connection and let it manage the exchange itself via
-`oauth_server_id`, when the OAuth server field gap noted in `references/oauth.md` doesn't block that.
+`oauth_server_id`, when the `oauth_server` fields are reachable (see `references/oauth.md`).
 
 **Migrating an existing `http_connector` action:** the domain exposes a bound enrichment task on
 `process_action`, `task_enrichment_conv_http_connector_to_web_connection` ("Convert HTTP connector to
@@ -201,16 +206,17 @@ illustrative; skip unless you want a concrete precedent for one of these pattern
   already-serialized JSON. See the escaping gotcha above.
 - **`use_deferred_credentials` disables both override mechanisms** — don't combine it with an
   expectation of environment-specific secrets stored in the model.
-- **`oauth_server`'s real configuration fields are not exposed through `sf/manage_webconnections`**
-  (only the key and `generated_by_control_proc_id`) — verify before promising a fully API-driven OAuth
-  server setup; see `references/oauth.md`.
+- **(Indicium · split-domain)** `oauth_server`'s configuration fields are not exposed through
+  `sf/manage_webconnections` (only the key and `generated_by_control_proc_id`); single-domain
+  `sf/software_development` exposes them. Check the entity definition before promising a fully
+  API-driven OAuth server setup; see `references/oauth.md`.
 - **Managed identity** as an auth type has mostly been discussed as an HTTP-connector feature request
   in the community — confirm it behaves as expected for the target cloud before depending on it here.
 
 ## Naming
 
 No dedicated web-connection naming convention has been observed beyond general Thinkwise guidance
-(`thinkwise_sf_data_model`): lowercase snake_case, no abbreviations. In practice, name the
+(`thinkwise-sf-data-model`): lowercase snake_case, no abbreviations. In practice, name the
 connection for the external service (`hubspot`, `azure_ad`, `iam`) and each endpoint for the operation
 it performs (`get_contacts`, `create_invoice`, `usr`) rather than after the HTTP verb or URL shape.
 
@@ -218,20 +224,20 @@ it performs (`get_contacts`, `create_invoice`, `usr`) rather than after the HTTP
 
 `web_connection_description`, `web_connection_endpoint_description`, and the parameter/output
 descriptions are translatable objects, same as any other model object — don't leave new ones in the
-source language only. See `thinkwise_sf_translations`.
+source language only. Their `transl_object` rows don't exist right after creation; look for them
+again after the next definition generation and fill them then. Deleting a connection, endpoint or parameter leaves its `transl_object` rows
+behind — delete the orphans too. See `thinkwise-sf-translations`.
 
 ## Pre-flight checklist
 
-- Build the connection graph in `sf/manage_webconnections` **before** touching the process-flow
-  binding entities in `sf/manage_process_flows` — the process action can't bind to a connection or
-  endpoint that doesn't exist yet.
+- Build the connection graph **before** touching the process-flow binding entities — the process
+  action can't bind to a connection or endpoint that doesn't exist yet.
 - Patch `authentication_type`, `endpoint_http_method`, `type_of_body`, and every other byte/enum field
   as the raw numeric or exact string value from its enum list — not a guessed label.
 - Match a body-template parameter's pre-processing mode to what its *value* actually is (scalar vs.
   already-serialized JSON/XML) — this is the single most common cause of an unparsable request body.
-- Before configuring OAuth: verify whether `oauth_server`'s client id/secret/endpoint fields are
-  actually writable through this connector (the schema read shows only the key) rather than assuming
-  the docs' field list is reachable via this API.
+- Before configuring OAuth: check whether `oauth_server`'s entity definition lists the client
+  id/secret/URL fields (split-domain shows only the key) rather than assuming they are reachable.
 - Model output parameters (JSONPath/XPath/regex) rather than leaving response parsing to a downstream
   `extract_json` action or raw SQL — that's the whole point of preferring a web connection.
 - Set `use_deferred_credentials` only when the flow-supplied-auth pattern is genuinely needed — it

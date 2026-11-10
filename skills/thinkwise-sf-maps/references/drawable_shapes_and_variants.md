@@ -1,14 +1,14 @@
 # Drawable shapes (Geometric Type Creation) and map tab-variant overrides
 
-Loaded on demand from `thinkwise_sf_maps`.
+Loaded on demand from `thinkwise-sf-maps`.
 
 ## Drawable shapes (Geometric Type Creation)
 
 Drawing is the mirror image of data mapping: instead of a column feeding the map, the map feeds a
 **task**. Since the map component's shape-drawing tools shipped, users can draw markers, circles,
 rectangles, lines and polygons directly on the canvas; each draw action executes the task wired into
-the matching `map.*_location_task_parmtr_id` field, passing the drawn geometry as that parameter's
-value.
+the matching `map.add_<shape>_task_id` task, passing the drawn geometry into the parameter named in
+`map.<shape>_location_task_parmtr_id`.
 
 A circle's captured JSON carries one extra key beyond a plain CoordSets ring — `"Radius"`, in meters:
 
@@ -26,7 +26,7 @@ Setup steps:
    CoordSets JSON — for circles, the receiving control procedure also needs the radius, either as a
    second parameter or parsed out of the same JSON payload depending on how the connector surfaces it.
    (This task, like any new task, starts with a bracket-placeholder translation — see
-   `thinkwise_sf_translations` to give it a real label before it reaches an end
+   `thinkwise-sf-translations` to give it a real label before it reaches an end
    user's toolbar.)
 2. **Assign the task as a table task** on the same table the map is defined on, mapping the
    primary-key parameters to their columns (`use_primary_key` on the table-task-creation task, or
@@ -43,8 +43,9 @@ Setup steps:
    and company_address_id = @company_address_id
    ```
 
-4. **Wire it into the map**: set the relevant `map.*_location_task_parmtr_id` field (the "Geometric
-   Type Creation" setting) to the task parameter created in step 1.
+4. **Wire it into the map** (the "Geometric Type Creation" setting): set `map.add_<shape>_task_id` to
+   the task first, then `map.<shape>_location_task_parmtr_id` to the parameter created in step 1 — the
+   parameter field stays hidden until the task is set.
 
 **Known platform gap**: no built-in surface-area or length calculation for a drawn shape (a circle
 shows its radius on hover; an irregular polygon does not get an area). If a use case needs it (e.g. a

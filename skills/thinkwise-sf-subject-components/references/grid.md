@@ -69,7 +69,8 @@ small screens, **Treeview** for hierarchy/grouping navigation.
    deterministic tie-breaker.
 7. Set `auto_resize_grid_col = no` on any table/variant with 20+ visible columns.
 8. Place a Grid leaf panel on the subject's screen type.
-9. For a variant, run `task_setup_tab_variant_grid_overview`, then edit `tab_variant_grid`/`_overview`
+9. For a variant, run `task_setup_tab_variant_grid_overview` **before any edit** (an edit first
+   snapshots the set and Setup is then refused with 403 until Reset), then edit `tab_variant_grid`/`_overview`
    directly or seed it from the Form with `task_copy_form_to_grid`.
 
 ## Task buttons in the Grid: inline action bar
@@ -86,7 +87,7 @@ buttons in the grid". Don't answer by only linking a task to the table.
   `screen_component_type_id = 'Tasks'` is the single action that surfaces all table tasks; CRUD,
   export, import etc. are separate rows. Then set `action_bar_side` (near/far), `screen_area_id`, and
   `default_display_type` on the included row.
-- Tasks only show if they are bound to the subject (`tab_task`, see `thinkwise_sf_tasks`) and the
+- Tasks only show if they are bound to the subject (`tab_task`, see `thinkwise-sf-tasks`) and the
   `tab_task.screen_area_id` matches the bar's screen area. Check both; create the missing link.
 - Steps: (1) find the Grid component on the target screen type and read the flag; (2) enable it;
   (3) include `Tasks`; (4) set side, screen area, display type; (5) read the rows back.

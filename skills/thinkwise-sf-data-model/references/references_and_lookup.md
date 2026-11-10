@@ -1,6 +1,6 @@
 # References (foreign keys) and the look-up display column
 
-Loaded on demand from `thinkwise_sf_data_model`.
+Loaded on demand from `thinkwise-sf-data-model`.
 
 ## References (foreign keys)
 
@@ -32,7 +32,7 @@ Confirmed against real production references in a live model (`ref_company_dev_e
 
 **When a table ends up with more than one detail tab** (multiple references showing `show_detail =
 true` against the same parent), give each a distinct order number — two detail tabs left at the same
-position is flagged by a Software Factory validation and produces an ambiguous tab order in the UI.
+position is flagged by a Software Factory validation and produces an ambiguous tab order in the UI. `ref.order_no` is hidden when the `ref` is added and reads back 0, so set it in an edit right after.
 
 **If direction is ever in doubt**, a wrong direction is accepted at write time with no error. It
 surfaces later as a validation resembling *"foreign key reference with integrity does not contain the
@@ -40,6 +40,10 @@ full primary key of the source table"* — which always means `source`/`target` 
 model's own validation output after creating a `ref` rather than re-deriving the rule from memory.
 
 **Disambiguating multiple references to the same table pair:** if a table (or view) has two or more FK-shaped columns pointing at the same target, the auto-derived `ref_id` (`ref_<source>_<target>`) collides between them. Set `ref_add` on each (e.g. `"most_recent"` / `"upcoming"`) — it appends a suffix (`ref_<source>_<target>_<ref_add>`) so each gets a distinct primary key instead of silently overwriting the first.
+
+**On PostgreSQL, keep a `ref_id` at most 60 characters.** Definition generation (`pg_create_indexes`) derives an index name from the reference id; a 63-character `ref_id` failed generation with the misleading error `invalid_characters_in_pk`, while a 60-character one passed. Shorten it through a shorter `ref_add`.
+
+**When a foreign key points to a weak entity** (a table whose key starts with its parent's key — e.g. `sales_order` referencing `customer_address`, keyed `customer_id, customer_address_id`), also add the reference from that parent on the leading column(s): `customer` → `sales_order` on `customer_id` alone. Without it, `sales_order.customer_id` gets no look-up of its own; with it, the `customer_address` look-up also filters by the customer the user picked.
 
 **Self-referencing foreign keys can't cascade on SQL Server.** A reference where `source_tab_id` equals `target_tab_id` (a table's own parent-child hierarchy, e.g. a `parent_id` pointing back at the same table) fails to deploy with `on_delete`/`on_update` set to anything other than `no_action` — SQL Server rejects the constraint outright at deploy time ("Introducing FOREIGN KEY constraint ... may cause cycles or multiple cascade paths"), even though the identical `on_delete = set_null`/`cascade` value deploys fine on an ordinary two-table reference. Model a self-referencing FK with `on_delete = no_action` and `on_update = no_action`, and if reparenting/promote-to-top-level-on-delete behavior is actually wanted, implement it in a control procedure or at the application level rather than relying on the database constraint to do it. Verify the same restriction independently before assuming it holds on a non-SQL-Server target dialect.
 
@@ -77,7 +81,12 @@ once per visible row everywhere the table is looked up from, which can be a lot 
 
 **The chosen display column (or calculated column) should return a distinct value per row.** A
 look-up display column that returns duplicate values across rows is flagged by a Software Factory
-validation, since it leaves a user unable to tell two rows apart in a combo/auto-complete. If no
+validation (`val_look_up_ref_source_not_a_unique_value`), since it leaves a user unable to tell two
+rows apart in a combo/auto-complete. The validation is met when the display column is the source
+table's single primary-key column, or when a unique index on the source table holds the display column
+plus at most the leading columns of the reference (for a weak entity, the parent part of its key); a
+filtered unique index counts. An `expression` display column is not stored and cannot be indexed — get
+its uniqueness from a unique index over the columns it is built from. If no
 single existing column is reliably unique, prefer the composite/concatenation calculated-column
 pattern above over accepting a display column with likely duplicates.
 
@@ -85,5 +94,6 @@ pattern above over accepting a display column with likely duplicates.
 pass, the same as grouping/sort/search/filter/aggregation above: know whether an existing column
 will serve, or whether a dedicated calculated column is needed, what it should compute, and what to
 name it, so
-`look_up_display_col_id` (and the calculated column itself, if needed) get set in the same
-create-time writes instead of a follow-up patch pass.
+`look_up_display_col_id` (and the calculated column itself, if needed) get set right away instead
+of in a later polish pass. It can't go in the `tab` add itself — the column doesn't exist yet — so
+edit the `tab` as soon as its columns are committed.

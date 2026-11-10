@@ -1,6 +1,6 @@
 # Assignment types, static assignment entities, and the two-task generation sequence
 
-Loaded on demand from `thinkwise_sf_control_procedures`.
+Loaded on demand from `thinkwise-sf-control-procedures`.
 
 ## Assignment types
 
@@ -27,6 +27,12 @@ assignment for column-level logic (Default, Layout, Context, …) is wired throu
   reusing `template_id` as the item id is a reasonable default.
   Naming extends to tasks, not just tables: `task_<task_id>`, `default_<task_id>`, `layout_<task_id>`,
   `badge_<task_id>`.
+  **Program objects `task_generate_code_grp` creates**, by `prog_object_id`: `default_<tab>`,
+  `layout_<tab>`, `context_<tab>`, `badge_<tab>`, `chg_<tab>` (change detection),
+  `handle_<tab>_<insert|update|delete>`, `task_<task_id>` (also when the task id already starts with
+  `task_`, e.g. `task_task_set_week`), `proc_<subroutine_id>`/`func_<subroutine_id>`, `view_<tab>`, and
+  `prc_<process_flow_id>_<process_action_id>` (process action). Address the `prog_object_id`
+  (`default_<tab>`), not the object's name in the database (`def_<tab>`).
 
   **Ordering.** All templates on one `prog_object_id` concatenate into a single procedure body in
   `order_no` order, so a variable declared in a low-`order_no` template is visible to a high-`order_no`
@@ -40,7 +46,9 @@ assignment for column-level logic (Default, Layout, Context, …) is wired throu
   list, referencing out-of-scope parameters, and **fails at deploy time, not at generation time.**
   Query `prog_object_item` for the target first to see the wrapper `order_no`s (e.g. `handler_start` 1,
   `transaction_start` 2, the generated statement ~1000) and pick a value strictly between two of them
-  — e.g. `5`.
+  — e.g. `5`. Other observed wrappers: a Task has `tasks_start` 1, `transaction_start` 2,
+  `transaction_commit` 98999, `transaction_catch` 99099, `transaction_end` 99999 and `tasks_end` 100000; Contexts and Functions
+  have their start/end items at 1 and 100000. Put your own templates at 10, 20, ….
   **A pre-mutation template runs before the framework has opened its transaction** — a bare
   `rollback transaction` there errors with nothing to roll back. Guard it:
   `if @@trancount > 0 rollback transaction`.
@@ -48,8 +56,8 @@ assignment for column-level logic (Default, Layout, Context, …) is wired throu
   `prog_object_item_parmtr_id`, auto int64). Holds `parmtr_id`/`parmtr_value` pairs: `parmtr_id` must
   match a `[bracket_token]` used literally in `template_code` (case-sensitive, bare name, no `@`),
   `parmtr_value` is the literal text substituted at generation time.
-- `prog_object` rows already exist once the table has ever been generated — check before assuming a
-  Generate-code-group pass is needed.
+- `prog_object` rows already exist once the table has ever been generated, but a new assignment still
+  needs a Generate-code-group pass to re-sync `prog_object_item` (point 6 below).
 - **A direct add to `template_prog_object_item` usually works, but can be rejected on some
   connectors.** Try the direct add first. If it errors, mirror the Assigning screen instead: find the
   read-only "available templates" overview row for the target `(rdbms_type, prog_object_id,
@@ -101,18 +109,20 @@ Generating code is **two separate tasks**. Running only the first produces no co
      (`--control_proc_id:`, `--template_id:`, `--prog_object_item_id:`) name the actual control
      procedure and template behind each section; look those up in
      `control_proc`/`control_proc_template`.
-3. **Step 1 is only needed once per brand-new object.** Once a `prog_object` row exists, go straight
-   to step 2 for every later template or assignment change.
+3. **Step 1 is needed for a brand-new object and after every new static assignment** (see point 6).
+   Only an edit to the code of a template that is already assigned goes straight to step 2.
 4. **`prog_object` is not directly writable** — add returns `403`. Always go through step 1.
 5. **A brand-new *standalone* subroutine** (`PROCEDURES`/`FUNCTIONS`/`TABLE_VALUED_FUNCTIONS`) with no
-   table/view/task to hang off normally gets its placeholder (`func_<id>`/`proc_<id>`) from
-   `task_generate_code_grp` bound to the subroutine's **own** control procedure. On some models/versions
-   no `prog_object` row appeared and no error was raised. Query `prog_object` after the generate; only if
-   the row is missing, treat it as a manual generate pass in the Software Factory and say so, rather than
-   retrying alternate API paths.
-6. **After wiring a new `template_prog_object_item` onto an object whose placeholder was bootstrapped
-   in step 1 with a *different* (e.g. framework) control procedure, re-run step 1 bound to your own
-   control procedure before step 2.** Otherwise generation reports `successful` with
+   table/view/task to hang off gets its placeholder (`proc_<id>`/`func_<id>`) the same way — verified
+   live on PostgreSQL and SQL Server: add the `subroutine` and its parameters first, then a control
+   procedure in the matching code group, and run `task_generate_code_grp` bound to that control
+   procedure. Assign the template at `order_no` 10. Step-by-step, wrapper items, and the delete
+   leftover: `thinkwise-sf-subroutines` (`references/creating_a_subroutine.md`). Query `prog_object`
+   after the generate; if the row is still missing, say a manual generate pass in the Software Factory
+   is needed rather than retrying alternate API paths.
+6. **After wiring any new `template_prog_object_item`, re-run step 1 bound to your own control
+   procedure before step 2** — also when the `prog_object` placeholder already existed. Otherwise
+   generation reports `successful` with
    `generated_code_stale = false`, but the code contains only the framework's `_start`/`_end` wrapper
    fragments — your template's logic is silently missing, because `prog_object_item` hadn't re-synced.
    **A `successful` status is not proof the right logic made it in** — read the generated text and

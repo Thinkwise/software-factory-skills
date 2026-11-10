@@ -1,6 +1,6 @@
 # Scheduler time-cell colouring
 
-Loaded on demand from `thinkwise_sf_schedulers`.
+Loaded on demand from `thinkwise-sf-schedulers`.
 
 ## `scheduler_view_conditional_layout` / `_condition` / `_tag` — time-cell colouring
 
@@ -29,7 +29,7 @@ this family colours the **time cells** of the grid itself.
 
 **When staging a write**, expect `type_of_time_scale`/`condition`/`type_of_value` to require the raw
 numeric value rather than the string key shown above (e.g. `2` for `date`, not the string `"date"`) —
-consistent with the general enum-key-rejection quirk noted in `thinkwise_sf_data_model`'s
+consistent with the general enum-key-rejection quirk noted in `thinkwise-sf-data-model`'s
 API-write-quirks reference.
 
 `scheduler_view_conditional_layout_tag`: a plain `(tag_id, value)` pair per cell colour, same tagging
@@ -99,7 +99,7 @@ distinct colour value that row can carry.
 **Design choice: a raw colour column vs. a named-state enum domain.** Storing a literal colour value
 directly on each period row keeps the second condition a simple equality check against that colour
 code, but a model with distinct named states (`vacation`/`sick_leave`/`maintenance`/`holiday`) is
-usually clearer with a proper enum domain instead (see `thinkwise_sf_data_model`'s "Domain
+usually clearer with a proper enum domain instead (see `thinkwise-sf-data-model`'s "Domain
 elements" section) — one value per state, with the meaning explicit in the data rather than encoded as
 a colour that only means something by convention.
 

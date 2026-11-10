@@ -1,6 +1,6 @@
 # Grid row grouping and aggregation
 
-Loaded on demand from `thinkwise_sf_data_model`.
+Loaded on demand from `thinkwise-sf-data-model`.
 
 Distinct from the grid *column* header grouping in "Form & grid groups" above
 (`grid_field_in_next_grp`/`grid_next_grp_label`, which visually bands grid *columns* under a shared
@@ -20,7 +20,12 @@ plus per-column footer totals. Verified live against real application models (`I
 - Aggregation (`col`): `show_aggregation_in_grid` (bool) + `aggregation_summary_type` (enum: `sum`,
   `count`, `average`, `min`, `max`, `stddev`, `stddevp`, `var`, `varp`) puts a per-column summary in
   the grid's footer — and in each group's own footer row too, when grouping is active on the same
-  grid.
+  grid. Through the write API (verified on SF 2026.2), `aggregation_summary_type` is hidden until
+  `show_aggregation_in_grid` is true — send that first in the same write — and then becomes editable
+  and mandatory. It takes a **number**, not the name: `"sum"` is refused (400). The numbering is
+  presumably the same as `cube_field.summary_type` (average 0, count 1, min 2, max 3, sum 6) — only
+  that numbering's acceptance on `cube_field` was verified, so confirm the enum with
+  `get_entity_definition` before sending anything other than sum.
 
 ### When to use grouping
 

@@ -1,6 +1,6 @@
 # Wiring runtime values through process variables
 
-Loaded on demand from `thinkwise_sf_process_flows`.
+Loaded on demand from `thinkwise-sf-process-flows`.
 
 ## Wiring runtime values through process variables
 
@@ -12,11 +12,12 @@ connector's URL in, its response body out, or `open_document`'s floating/modal s
 a captured row value), `process_action_modeler_task_parmtr_input`/`_task_parmtr_output` (a task's own
 parameters), plus `sub_flow`/`report_parmtr`/`message_broker_message` variants for those action
 types — pick the one matching what the action actually is, not one generic table for all of them.
-**For a `web_connection` action specifically**, the equivalents are
-`process_action_web_connection_endpoint_parmtr_input_parmtr` (endpoint input),
+**For a `web_connection` action specifically**, edit the pre-seeded
+`process_action_modeler_web_connection_endpoint_input` rows (endpoint input — the edit creates the stored
+`process_action_web_connection_endpoint_parmtr_input_parmtr` row),
 `process_action_web_connection_parmtr_input_parmtr` (connection-level input), and
 `process_action_modeler_web_connection_endpoint_output` (output) — see
-`thinkwise_sf_web_connections` for the full field reference.
+`thinkwise-sf-web-connections` for the full field reference.
 
 **A generically-named `process_action_output_parmtr` entity also exists and looks like "the" output
 entity from its own definition (it even carries the same `output_parmtr_id` enum as
@@ -39,14 +40,23 @@ parameter that type supports. **Staging an `add` on any of these child entities 
   skip it.
 - Rows are **not** auto-mapped by name: a task output `robot_id` stays unmapped even when a variable
   `robot_id` exists. Edit every row (`process_variable_id`, plus `assignment_method = variable` on
-  inputs).
+  inputs). `assignment_method` is a string-element domain: send the element `variable` (or
+  `literal_constant`), not a number. Editing the pre-seeded `process_action_modeler_task_parmtr_input`
+  row is what creates the stored `process_action_task_parmtr_input_parmtr` row (verified on SF 2026.2).
 - Task actions: `process_action_modeler_task_parmtr_input` / `_task_parmtr_output`, keyed by
-  `task_id, task_parmtr_id`. Send user notification and other fixed-parameter types:
+  `task_id, task_parmtr_id`. A task or report action must map every mandatory parameter of its task or
+  report (an `execute_tab_task` takes its values from the row). Send user notification and other
+  fixed-parameter types:
   `process_action_modeler_fixed_input`, keyed by `input_parmtr_id` (`assignment_method =
   literal_constant` plus `constant_value` or `constant_enum_value` for literals).
-- Publish message actions: `process_action_modeler_message_broker_message_input`. Editing these rows
-  (even reading a single row by key) fails with a bad-request error through the API — map them in the
-  Software Factory UI and say so; see `thinkwise_sf_message_brokers`.
+- Change filter (`change_filter`, 330) actions: only `tab_id` is needed; edit the seeded
+  `process_action_modeler_col_input` rows of the columns to filter on and leave the rest empty. With no
+  column assigned, the action filters nothing. Its options are four fixed inputs on
+  `process_action_modeler_fixed_input`: `chg_filter_allow_wildcard`, `chg_filter_case_sensitive`,
+  `chg_filter_ignore_diacrts` and `chg_filter_disable_prfltr` (disable the prefilters for this filter).
+- Publish message actions: edit the pre-seeded `process_action_modeler_message_broker_message_input`
+  rows, one per message input parameter, the same way as task parameters; see
+  `thinkwise-sf-message-brokers`.
 
 **Worked pattern — filtering a popup to the row that triggered the flow** (the shape behind
 "double-click a row → modal popup of related, filtered records"):

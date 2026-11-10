@@ -34,19 +34,20 @@ Pivot table and/or chart
 ```
 
 Apply this whenever an MCP connector with Software Factory access creates, inspects, or modifies a
-cube, cube field, or cube view. Domain: `sf/manage_cubes`.
+cube, cube field, or cube view. Domain: split-domain instances `sf/manage_cubes`; single-domain
+`sf/software_development`; otherwise find it with `search_domain_capabilities`.
 
 **Companion skills, not duplicated here**: general screen-type/component mechanics (`screen_type`,
 `tab`, `main_screen_type_id`, how components attach to a screen) are covered in
-`thinkwise_sf_build_planner`'s interaction-surface step and the screen-type API-quirk
-note in `thinkwise_sf_data_model` — a new screen type can't be created through the MCP
-tools, so a cube's screen types (`cube`, `cube_horizontal`, `cube_no_fields` are the default
-cube-capable ones) and components (Pivot table, Chart, Cube panel, Cube view bar) must be assigned to
-a table by picking from what already exists. Table-variant inheritance mechanics in general (field-level vs.
-snapshot, `tab_variant_change`, `tab_variant_used`) live in `thinkwise_sf_variants` —
+`thinkwise-sf-build-planner`'s interaction-surface step and the screen-type API-quirk
+note in `thinkwise-sf-data-model` — prefer the default cube-capable screen types (`cube`,
+`cube_horizontal`, `cube_no_fields`) and their components (Pivot table, Chart, Cube panel, Cube view
+bar). A new screen type can be built through the write API (`thinkwise-sf-subject-components`'
+`references/screen_types.md`), but cube components on a hand-built screen type are not verified yet. Table-variant inheritance mechanics in general (field-level vs.
+snapshot, `tab_variant_change`, `tab_variant_used`) live in `thinkwise-sf-variants` —
 this skill covers only the cube-specific override entities (`tab_variant_cube_overview`,
 `tab_variant_cube_view_overview`). The general conditional-layout mechanic (colors, fonts, condition
-types) lives in `thinkwise_sf_conditional_layouts`, but note
+types) lives in `thinkwise-sf-conditional-layouts`, but note
 `cube_view_field_conditional_layout` is a **separate, cube-specific entity family**, not a row in
 that skill's `conditional_layout` table — see "Conditional layouts on a cube view" below.
 
@@ -95,12 +96,12 @@ part every piece of Thinkwise's own documentation and community feedback stresse
 ## Object graph
 
 ```text
-cube  (one per source subject/table, domain key sf/manage_cubes)
+cube  (one per source subject/table)
  ├─ cube_field            (one per dimension/value; cube_field_type: dimension | measure)
  │   └─ cube_field_query   (per-RDBMS SQL expression, for calculated/formula fields)
  ├─ cube_view              (one saved pivot/chart configuration)
  │   ├─ cube_view_field            (places one cube_field into an area of this view)
- │   │   ├─ cube_view_field_filter        (default filter values, when area = filter)
+ │   │   ├─ cube_view_field_filter        (default filter values — filter-area or category-row fields)
  │   │   ├─ cube_view_field_total         (extra total rows/cols, when area = value)
  │   │   └─ cube_view_field_conditional_layout  (cube-specific conditional formatting)
  │   ├─ cube_view_constant_line     (target/threshold lines on a chart axis)
@@ -109,7 +110,7 @@ cube  (one per source subject/table, domain key sf/manage_cubes)
  ├─ chart_legend_color      (custom per-member series colors on a value's chart legend)
  ├─ role_cube_overview / role_cube_field_overview   (per-role rights, incl. cube-panel & edit rights)
  └─ tab_variant_cube_overview / tab_variant_cube_view_overview   (per-table-variant overrides,
-     domain key sf/manage_datamodel — see "Per-variant overrides" below)
+     in sf/manage_datamodel on split-domain instances — see "Per-variant overrides" below)
 ```
 
 Every one of these keys off `model_id, branch_id, cube_id` first, then its own id chain — the same
@@ -118,13 +119,18 @@ pattern as every other Software Factory object family.
 ## Creating a cube
 
 `task_enrichment_create_cube` — bound to the `cube` entity itself, mandatory `tab_id` (the source
-table), optional `cube_description`. Documented/expected to be addressable directly by the **new**
-`(model_id, branch_id, cube_id)` you want to create — the same "the task creates its own bound row"
-pattern used by `task_create_tab_variant` elsewhere in the model. **Verified live this did not
-work**: staging this task against a not-yet-existing cube's key was consistently rejected (across
+table), `summary_type` and `summary_display_type` (the defaults for generated value fields), optional
+`cube_description`. Documented/expected to be addressable directly by the **new**
+`(model_id, branch_id, cube_id)` you want to create ("the task creates its own bound row").
+**Verified live this did not work**: staging this task against a not-yet-existing cube's key was consistently rejected (across
 repeated attempts and domain variants) rather than creating the row. The reliable fallback, confirmed
 live: skip the task entirely and create `cube` with a plain add — set `model_id`/`branch_id`/
-`cube_id`/`cube_description`/`allow_dragging_fields` by hand, the same as any other top-level entity.
+`cube_id`/`cube_description`/`allow_dragging_fields` by hand, as an add under `branch`
+(`detail_ref_branch_cube`, verified through the write API on SF 2026.2). `cube_id` is the id of the
+source table or view — one cube per table; any other id is refused on staging (403
+`staging_request_failed`).
+Deleting the cube deletes its fields and views, but not their `transl_object` rows (types 24/25/26) —
+delete those too (see `thinkwise-sf-translations`).
 This forgoes the task's auto-generated field proposal, so expect to build `cube_field` rows
 individually afterward (see below) — extra work for a wide table, but the only path that reliably
 works.
@@ -137,13 +143,17 @@ Running the task, when it *does* work:
   value is sourced from the fact-grain table, and re-classify anything mis-detected as dimension vs.
   value.
 
-**`cube_field` has the same fallback need.** Its declared navigation properties on `cube`
-(`detail_ref_cube_cube_field_dimension`/`_value`, splitting fields by dimension vs. value) look like
-the natural parent-nav path for adding one, both are rejected as invalid parent
-targets for a staged add. Add `cube_field` with a plain top-level add (the full compound key supplied
-directly) instead of trying to nest it under `cube`.
+**`cube_field` must be added under its `cube`, on a field-type variant entity set** (verified
+through the write API on SF 2026.2). A plain flat `cube_field` add is refused with a parent-context
+error that points only at `model_settings_modeler` — not a usable route. What works: stage the add
+under the `cube` on `cube_field.gui_modeler_cube_field_type_value` for a value ("measure") —
+`cube_field_type` is then hidden and set to 1, `summary_type` defaults to 6 (sum) — or on
+`cube_field.gui_modeler_cube_field_type_dimension` for a dimension. Send enums as numbers:
+`summary_type: "sum"` is refused with 400 `invalid_input`; send `6` (see
+`references/cube_fields_and_views.md`). Earlier attempts through the plain `detail_ref_cube_cube_field_dimension`/
+`_value` navigation properties were rejected as parent targets — use the variant entity sets above.
 
-`cube.default_cube_view_id` sets which view opens by default; `cube.allow_dragging_fields` is the
+`cube.default_cube_view_id` sets which view opens by default — set it as an edit once the views exist; `cube.allow_dragging_fields` is the
 model-level switch for the end-user "Cube panel" (drag-and-drop self-service rearranging — see
 "User customization" below). `cube.olap_connection`/`olap_server_name`/`olap_db_name`/`olap_cube_name`
 are legacy Windows-GUI-only OLAP cube settings (Microsoft Analysis Services) — irrelevant to a
@@ -160,8 +170,8 @@ generated-object convention documented for scheduler/map components.
 UI screen, the docs, and the 2025.1 modeler split call the second one **"Value"**, not "Measure" —
 community feedback specifically flagged the old combined "Cube fields" tab as confusing before it
 was split into separate **Dimensions** and **Values** tabs. When reading or writing
-`cube_field_type`, use the enum literal `measure`; when talking to a user or naming things, say
-"value." Don't let the schema's internal name leak into a field's user-facing description.
+`cube_field_type`, the enum literal is `measure` (send its number, `1`, in a write — enum names are
+refused); when talking to a user or naming things, say "value." Don't let the schema's internal name leak into a field's user-facing description.
 
 ## Cube fields and cube views
 
@@ -203,7 +213,7 @@ Confirmed live, both role-scoped and independent of a table's own row/column rig
 |---|---|---|
 | `role_cube_overview` | `available` | Whether this role can see/use the cube at all |
 | | `dragging_fields_granted` (with meta-mirror `sf_allow_dragging_fields`) | Whether this role gets the end-user Cube panel (self-service rearrange), independent of whether the cube-level `cube.allow_dragging_fields` switch is even on |
-| `role_cube_field_overview` | `available` | Whether this role sees this specific dimension/value at all |
+| `role_cube_field_overview` | `available` | Whether this role sees this specific dimension/value at all. A role has no right on a cube field until that field is `granted`, even when it reads the table and holds the cube — see `thinkwise-sf-roles` |
 | | `editable` (with meta-mirror `sf_editable`) + `granted` | Whether this role can edit this specific value — on top of every other editable-value precondition above |
 
 Both carry `rights_icon` (`super_user`/`grant`/`read`/`hidden`/`unauthorized`) mirroring the standard
@@ -225,24 +235,28 @@ users change, the known Software Factory modeling friction around cubes, and a f
 1. Write down the analytical question and audience in one sentence.
 2. Identify the source subject and state its exact row grain; validate independently (control
    totals) that joins behind it don't duplicate facts.
-3. `task_enrichment_create_cube` with `tab_id` (+ optional `cube_description`) to generate the
-   starting proposal.
+3. `task_enrichment_create_cube` with `tab_id`, `summary_type` and `summary_display_type` (+ optional
+   `cube_description`) to generate the starting proposal.
 4. Review every generated `cube_field`: remove semantic-free IDs, fix any mis-classified
    dimension/value, confirm `col_id` sources are fact-grain.
 5. **Gate: present the proposed dimension/value classification, hierarchy plan, and view list to the
    user, and get their explicit confirmation before proceeding to any further staged writes**
    (interval/hierarchy wiring, additional views, etc.) — don't treat step 4's review as silent
-   authorization to keep building. This is the `thinkwise_sf_base`
+   authorization to keep building. This is the `thinkwise-sf-base`
    "Confirm-before-mutate" convention applied at this skill's own grain.
-6. Set `type_of_grp_interval`/`grp_interval_numeric_range` on date/numeric dimensions that need
+6. Set `type_of_grp_interval` (numbers: `default` 0, `alphabetical` 1, `numeric` 2, `date` 3,
+   `date_year` 4, `date_quarter` 5, `date_month` 6, `date_week_of_year` 7, `date_week_of_month` 8,
+   `date_day_of_year` 9, `date_day_of_month` 10, `date_day_of_week` 11, `year_age` 12, `month_age` 13,
+   `week_age` 14, `day_age` 15) and `grp_interval_numeric_range` on date/numeric dimensions that need
    bucketing; wire `cube_field_grp_id` for genuine hierarchies.
 7. For ratios/margins, add a `cube_field` with `summary_type = sql_expression` and one
    `cube_field_query` row per target RDBMS, using the `t1` alias.
 8. Create one or more focused `cube_view` rows — each answering one question, not an
    everything-view.
 9. Add `cube_view_field` rows placing each relevant `cube_field` into `cube_area_filter`/
-   `cube_area_category_row`/`cube_area_series_column`/`cube_area_value` — patch `cube_area` directly
-   rather than via the drag-drop task.
+   `cube_area_category_row`/`cube_area_series_column`/`cube_area_value` — add each under its
+   `cube_view` with `detail_nav = detail_ref_cube_view_cube_view_field` (the parent has several
+   detail navigations to it), and patch `cube_area` directly rather than via the drag-drop task.
 10. Configure `cube_view_field_filter` defaults, `sort_order`/`sort_by_cube_field_id`,
     `show_top_x`/`show_other`, and `expand` per field.
 11. Configure `cube_view` totals (`show_*_total`, `total_position`), `drill_down_grid`, and
@@ -255,8 +269,8 @@ users change, the known Software Factory modeling friction around cubes, and a f
     `role_cube_overview`/`role_cube_field_overview` rights.
 15. Only enable `editable` on a value after confirming every precondition in "Editable pivot values"
     holds for its intended grain.
-16. Wire the table's screen type/components — picking an existing cube-capable screen type, since
-    creating a new one isn't supported via MCP (see `thinkwise_sf_build_planner`) — and
+16. Wire the table's screen type/components — preferably an existing cube-capable screen type (see
+    `thinkwise-sf-build-planner`; building a new one is possible but unverified for cube components) — and
     any per-variant overrides (`tab_variant_cube_overview`/`tab_variant_cube_view_overview`).
 17. Validate totals against an independently calculated control total, check performance at
     production-like cardinality (including "Expand all"), and test light/dark conditional-layout
@@ -272,9 +286,9 @@ view layout and its chart), read `references/worked_example.md`.
 - **State the grain and validate control totals before creating anything** — a technically correct
   `sum` over duplicated rows is still a wrong business answer.
 - **`task_enrichment_create_cube` can reject a not-yet-existing cube's key outright**;
-  don't spend more than one retry on it. Fall back to a plain add on `cube` (and, separately, on
-  `cube_field` — its declared dimension/value navs from `cube` aren't valid parent-nav targets
-  either).
+  don't spend more than one retry on it. Fall back to adding `cube` under `branch`, then each
+  `cube_field` under the `cube` on `cube_field.gui_modeler_cube_field_type_value`/`_dimension` — a
+  plain flat `cube_field` add is refused. Send `summary_type` as a number.
 - **Review the generated proposal — never accept it unchanged.** Remove ID-only fields, confirm
   fact-grain sourcing, re-check every dimension/value classification.
 - **`cube_field_type` enum literal is `measure`; call it "Value" everywhere user-facing** — don't

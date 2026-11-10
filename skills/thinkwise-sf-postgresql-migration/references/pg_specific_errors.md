@@ -1,6 +1,6 @@
 # PostgreSQL-specific errors — name collisions, MERGE/FK, and seed data
 
-Loaded on demand from `thinkwise_sf_postgresql_migration`.
+Loaded on demand from `thinkwise-sf-postgresql-migration`.
 
 ## Domain/column name collisions — PostgreSQL-specific validation
 
@@ -29,7 +29,7 @@ patch only `to_dom_id` after staging) changes nothing about the physical column 
 platform, so it's a safe, fully backward-compatible fix that doesn't touch the already-working
 SQL Server deployment. **Ask the user for a naming convention before renaming anything** (`dom_`
 prefix, `_dom` suffix, or a case-by-case pass) — this is a real design choice affecting how the domain
-list reads afterward, not a mechanical detail to default silently (see `thinkwise_sf_base`'s "Ask, don't default"). Apply the same convention across every colliding domain in one pass
+list reads afterward, not a mechanical detail to default silently (see `thinkwise-sf-base`'s "Ask, don't default"). Apply the same convention across every colliding domain in one pass
 once chosen.
 
 **Open, unresolved as of this writing**: a related validation message — "Another object has the same

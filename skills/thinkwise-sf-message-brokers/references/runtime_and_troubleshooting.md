@@ -3,7 +3,7 @@
 ## Deployment order
 
 1. Generate definition → validate → generate code → execute source code (see
-   `thinkwise_sf_deployment`). Regenerate the definition after every model change before generating
+   `thinkwise-sf-deployment`). Regenerate the definition after every model change before generating
    code.
 2. **Sync to IAM.** The broker, messages, subscriptions and mappings travel to IAM
    (`sf_message_broker*` tables); Indicium reads them from there. Variable/domain changes need a sync.

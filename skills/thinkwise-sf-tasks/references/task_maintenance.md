@@ -1,6 +1,6 @@
 # Task variants, renaming/copying/deleting, control procedures, and translation
 
-Loaded on demand from `thinkwise_sf_tasks`.
+Loaded on demand from `thinkwise-sf-tasks`.
 
 ## Task variants (`task_variant`)
 
@@ -38,12 +38,20 @@ bar), `screen_area_id`, `custom_display_type` (icon/text fallback chain — see 
 (`grid_double_click`/`grid_double_click_col_id`), and `enable_tab_task_when_empty`. Then add
 `tab_task_parmtr` rows for any parameter that should auto-fill from a column of the current row.
 
+**The Software Factory creates no `tab_task_parmtr` row**, not even when the parameter id matches a
+column id — without one the task receives `null` for that parameter. Add one under `tab_task`
+(`task_parmtr_id`, `col_id`) per row-derived parameter. Through the write API (observed on SF 2026.2):
+a column of another table is refused (`403`), but mapping the same parameter to a second column is
+accepted, and the parameter's and column's domains are not compared — check both yourself, one
+column per parameter. On a `tab_task` add,
+`context_type_output` is read-only — the Software Factory sets it to `true`.
+
 **`tab_task.icon` is a table-specific *override*, not the task's primary icon** — leave it unset to
 inherit `task.icon_id`, and only set it when this table's context genuinely warrants a different icon
 than the task shows everywhere else. **It's also verified upload-only**: unlike `task.icon_id`,
 `tab_task` has no `icon_id` field at all — it's a plain file upload straight onto the row, not a pick
 from the shared repository, so it can't be reused or consolidated via `task_update_icon_usage`. See
-`thinkwise_sf_icons`.
+`thinkwise-sf-icons`.
 
 **Set `enable_tab_task_when_empty=false`** for a task whose entire purpose is acting on one specific
 selected row — e.g. a task bound only to launch a process flow via `grid_double_click`. It defaults to
@@ -54,14 +62,14 @@ Use this when the assignment is genuinely one-off, or the target table only need
 existing table's task list.
 
 **When a new `tab_task_grp` (task group) is called for, propose these as its defaults while
-confirming the plan** — per `thinkwise_sf_base`'s "Ask, don't default" convention,
+confirming the plan** — per `thinkwise-sf-base`'s "Ask, don't default" convention,
 this is what to put forward for sign-off, not something to apply silently unless the user corrects it:
 - **`sub_menu = true`** — render the group as a dropdown rather than inline buttons.
 - **`custom_display_type = icon_text_text_only_icon_only_overflow`** (value `0`) — "Icon + text",
   falling back to text-only, then icon-only, then overflow, as space runs out. Both fields default to
   `false`/unset on a plain add, so set them explicitly once confirmed rather than leaving the field
   default in place. The same `custom_display_type` default applies to a `tab_prefilter_grp` — see
-  `thinkwise_sf_prefilters`.
+  `thinkwise-sf-prefilters`.
 
 ### Bulk-copying an existing assignment
 
@@ -87,6 +95,12 @@ model:
 - `task_copy_task_variant` (`from_task_id`, `from_task_variant_id`, `to_task_variant_id`)
 - `task_delete_task_ref` / `task_delete_task_conditional_layout`
 
+After `task_delete_task`, if you had generated code groups for the task, re-run Generate code group for
+**TASKS** and for **DEFAULTS**/**LAYOUTS** when the task used them (nothing to re-run otherwise), so the `task_`/`default_`/`layout_` placeholders disappear too.
+
+Deleting a task, variant or parameter leaves its `transl_object` rows behind; delete them afterwards
+(see `thinkwise-sf-translations`).
+
 ## Control procedures for a task's own logic
 
 For a `STORED_PROCEDURE`-typed task, the real logic is a control procedure exactly like any other
@@ -94,7 +108,7 @@ generated object — the **TASKS** code group, plus **DEFAULTS**/**LAYOUTS**/**B
 task wherever those concepts are enabled. Object naming carries straight over: `task_<task_id>` is
 the task's own executable object; `default_<task_id>`, `layout_<task_id>`, `badge_<task_id>` are
 its Default/Layout/Badge sub-objects. Follow
-`thinkwise_sf_control_procedures` for the full sequence — in short, once the
+`thinkwise-sf-control-procedures` for the full sequence — in short, once the
 `task`/`tab_task`/`task_parmtr` rows exist (Golden rule above):
 
 1. Query `branch_rdbms_type` before writing a line of SQL.
@@ -113,7 +127,7 @@ the Software Factory's own code generation.
 
 ## Translation
 
-Follow `thinkwise_sf_translations` for the general mechanics. Task-specific
+Follow `thinkwise-sf-translations` for the general mechanics. Task-specific
 points:
 
 - A task's own label is a `transl_object` of the task's `type_of_object`, keyed by its bare
@@ -137,6 +151,6 @@ points:
 - To find task text nobody has translated, look for the bracketed placeholder the platform
   auto-fills (`[task_id]`, `[task_parmtr_id]`), not a blank/null check.
 - **Before calling a new task done, run the translation completeness gate from
-  `thinkwise_sf_data_model`'s "Translating new objects" section** — a task's own label and
+  `thinkwise-sf-data-model`'s "Translating new objects" section** — a task's own label and
   every one of its parameters are separate translation objects (see above), and it's easy to translate
   the task and forget its parameters, or vice versa, without a final mechanical check.

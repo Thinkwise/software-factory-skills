@@ -1,6 +1,6 @@
 # Diagrams in a Thinkwise data model
 
-Loaded on demand from `thinkwise_sf_data_model`. Diagram **writes are not possible**
+Loaded on demand from `thinkwise-sf-data-model`. Diagram **writes are not possible**
 through a metadata-driven modeling API — this file covers the design rules for when a human
 maintains them in the Software Factory.
 

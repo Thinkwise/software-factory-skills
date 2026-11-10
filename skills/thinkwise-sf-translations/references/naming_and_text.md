@@ -1,6 +1,6 @@
 # Translation naming, plural forms, and help text
 
-Loaded on demand from `thinkwise_sf_translations`.
+Loaded on demand from `thinkwise-sf-translations`.
 
 ## Naming — the object ID *is* the translation key
 
@@ -27,11 +27,15 @@ Two fixes, confirmed against the platform's own translation model:
   with something else, or add a genuinely new column and translate it independently, if the source
   column must keep its generic ID for another reason (e.g. it's shared through a domain on purpose).
 
+**Don't give two columns of one table the same text in a language** (e.g. `activity_id` and
+`activity_name` both "Activity") — users can't tell them apart. Label the id column distinctly or hide
+it.
+
 **Domain elements** (`type_of_object = dom_elemnt`, value 2): the `transl_object_id` is the element's
 own ID. Real IDs pulled live from `INSIGHTS` include both plain descriptive IDs (`approved`,
 `approve_working_hours`) and numeric-prefixed ones (`1_project`, `2_customer`) — the latter pattern
 sacrifices some of the "ID carries all descriptive meaning, database value stays a meaningless
-sequential integer" convention (see the `thinkwise_sf_data_model` skill's Domain elements
+sequential integer" convention (see the `thinkwise-sf-data-model` skill's Domain elements
 section) for explicit, stable ordering. Match whatever convention the model already uses rather than
 mixing both within one domain.
 
@@ -66,7 +70,7 @@ plural into a new language, treat it as a draft, not a commit — review it befo
 any other AI-drafted translation.
 
 **Verify after a combined write:** another instance of the general "a multi-field
-write can silently drop one field" behavior in `thinkwise_sf_data_model`'s quirks section —
+write can silently drop one field" behavior in `thinkwise-sf-data-model`'s quirks section —
 setting `transl` and `transl_plural` together in one write occasionally left `transl_plural` reverted
 back to equal the just-set singular `transl` instead of the plural value that was also specified in
 the same write — reproducible on 2 of 6 table records in one session, not a one-off typo. Re-read the

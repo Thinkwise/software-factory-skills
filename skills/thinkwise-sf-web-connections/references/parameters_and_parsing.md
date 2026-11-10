@@ -1,6 +1,6 @@
 # Web connection input parameters, pre-processing, and response parsing
 
-Loaded on demand from `thinkwise_sf_web_connections`.
+Loaded on demand from `thinkwise-sf-web-connections`.
 
 ## 4 · Input parameters &amp; pre-processing
 
@@ -10,6 +10,20 @@ Reference either with `{parameter_name}` anywhere textual — path, query string
 form field value, or body template. Renaming (`task_rename_web_connection_parmtr` /
 `_endpoint_parmtr`) rewrites every usage site automatically, tracked in the read-only
 `*_parmtr_usage` entities.
+
+**Add the parameter row yourself** — writing a `{token}` into `endpoint_path` (or elsewhere) does not
+create it. Add a `web_connection_endpoint_parmtr` with the full key including
+`web_connection_endpoint_parmtr_id` (matching the token name), and set
+`endpoint_parmtr_value_pre_processing` as a number from the table below (`auto` 0 … `none` 9). The add
+route differs by domain layout:
+
+- **(Indicium · split-domain)** add it under the `web_connection_endpoint` through the variant entity
+  set `web_connection_endpoint_parmtr.gui_modeler_web_connection_endpoint_parmtr`.
+- **(Indicium · single-domain)** an add under the endpoint answers `detail_nav_not_found`; add it
+  **flat** on `web_connection_endpoint_parmtr` with the full key instead.
+
+If one route is refused, try the other. `web_connection_endpoint_output_parmtr` behaves the same on a
+single-domain instance: add it flat with the full key.
 
 - `default_value` — constant fallback if the process flow doesn't supply one.
 - `*_pre_processing` — how the raw value is escaped/encoded before substitution:

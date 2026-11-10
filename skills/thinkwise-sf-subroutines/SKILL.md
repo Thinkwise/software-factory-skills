@@ -9,19 +9,20 @@ Reference for the full subroutine lifecycle: `subroutine` (master object) → `s
 `subroutine_return_col` (table returns only) → `subroutine_option` → control procedure → template →
 `template_prog_object_item` → generated function/procedure, deployed to the database, called by other
 business logic. The last three steps of that chain are the **general control-procedure mechanics**
-already documented in `thinkwise_sf_control_procedures` — this skill covers what's
+already documented in `thinkwise-sf-control-procedures` — this skill covers what's
 specific to subroutines (the contract, the options, choosing type/return shape, role rights, and every
 place a subroutine gets *called from*) and hands the SQL-writing/assignment/generation mechanics off to
 that sibling skill rather than duplicating them.
 
-Domain key verified live: **`sf/manage_subroutines`** holds `subroutine`, `subroutine_parmtr`,
+Domain: split-domain instances `sf/manage_subroutines`; single-domain `sf/software_development`;
+otherwise find it with `search_domain_capabilities`. It holds `subroutine`, `subroutine_parmtr`,
 `subroutine_return_col`, `subroutine_type`, `subroutine_option`, `subroutine_type_option`,
 `subroutine_type_option_value`, `subroutine_tag`, `subroutine_parmtr_tag`, and
-`role_subroutine_overview.model_rights`. A different domain, `sf/manage_control_procedures`, also
-exposes a `subroutine` entity set — that copy is a read-only stub (`model_id`, `branch_id`,
-`subroutine_id`, `generated_by_control_proc_id` only, `allow_add/update/delete = false`) meant for
-foreign-key lookups from control-procedure entities, **not** the real definition. Always create/edit
-subroutines through `sf/manage_subroutines`.
+`role_subroutine_overview`. **(Indicium · split-domain)** `sf/manage_control_procedures` also exposes
+a `subroutine` entity set — a read-only stub (`model_id`, `branch_id`, `subroutine_id`,
+`generated_by_control_proc_id` only, `allow_add/update/delete = false`) for look-ups from
+control-procedure entities, **not** the real definition. Create and edit subroutines through
+`sf/manage_subroutines` there.
 
 ## What a subroutine is, and what it isn't
 
@@ -32,11 +33,11 @@ stored procedure, CLR routine, or (DB2) external routine.
 | Need | Best starting concept |
 |---|---|
 | Reusable database calculation or operation, callable from many places | **Subroutine** |
-| User explicitly starts an operation | Task, which may call a subroutine (`thinkwise_sf_tasks`) |
-| Dynamic UI visibility/editability/mandatory state | Layout logic (`thinkwise_sf_control_procedures`) |
+| User explicitly starts an operation | Task, which may call a subroutine (`thinkwise-sf-tasks`) |
+| Dynamic UI visibility/editability/mandatory state | Layout logic (`thinkwise-sf-control-procedures`) |
 | Initial values for add/copy | Default logic (same skill) |
 | Integrity around insert/update/delete | Handler or database constraint (same skill) |
-| A multi-step UI or integration journey | Process flow (`thinkwise_sf_process_flows`) |
+| A multi-step UI or integration journey | Process flow (`thinkwise-sf-process-flows`) |
 | A table-shaped subject the UI can browse/screen against | A `tab` with `type_of_table = function` (2) — **not** a subroutine, see below |
 | Externally callable business operation | An API-enabled subroutine, or a dedicated web connection endpoint |
 
@@ -46,7 +47,7 @@ unrelated ways to model a table-valued SQL function:
   invoked from other code (`select * from dbo.get_available_resources(@date)`). No screen, no rows in
   `tab`/`col`.
 - A `tab` row with `type_of_table = function` (enum: `table` 0, `view` 1, **`function` 2**, `mqt` 4,
-  covered in `thinkwise_sf_views`) — a table-valued function modeled as a
+  covered in `thinkwise-sf-views`) — a table-valued function modeled as a
   screen-viewable *subject*, with real `col` rows, references, screens, and tasks like any other table,
   generated as a function purely so it can take parameters (e.g. a date range) the way a plain view
   cannot.
@@ -55,9 +56,9 @@ Pick the `tab`-based route only when the result needs to be browsed/edited on a 
 
 **Subroutine vs. subflow.** A subroutine is database/business logic with a parameter and return
 contract. A subflow is reusable *process-flow* orchestration (process actions and variables) — see
-`thinkwise_sf_process_flows`.
+`thinkwise-sf-process-flows`.
 
-## Entity map (all in `sf/manage_subroutines` unless noted)
+## Entity map (all in the subroutine domain above)
 
 | Entity | Key (adds to parent) | Purpose |
 |---|---|---|
@@ -69,11 +70,11 @@ contract. A subflow is reusable *process-flow* orchestration (process actions an
 | `subroutine_type` *(read-only)* | `subroutine_type_id` | Platform-provided list of buildable types — **query live, don't hardcode**; varies by `branch_rdbms_type` (a PostgreSQL model only has `Function`/`Procedure`; DB2 adds `External function`/`External procedure`; SQL Server adds `CLR function`/`CLR procedure`/`DLL assembly`) |
 | `subroutine_type_option` *(read-only)* | `subroutine_type_id`, `subroutine_type_option_id` | Which options exist per type, and whether each allows a custom value (`allow_custom_value`) |
 | `subroutine_type_option_value` *(read-only)* | + `subroutine_type_option_value` | Allowed enumerated values for a non-custom option |
-| `role_subroutine_overview.model_rights` | `role_id`, `subroutine_id` | Per-role execute grant — see "Role rights" below |
+| `role_subroutine_overview` | `role_id`, `subroutine_id` | Per-role execute grant — see "Role rights" in `references/creating_a_subroutine.md` |
 
 `subroutine`, `subroutine_parmtr`, and `subroutine_return_col` are all directly writable
 (`allow_add/update/delete = true`) — unlike a Task (which needs `task` → `tab_task` → `task_parmtr` in a
-strict order, see `thinkwise_sf_control_procedures`'s "Creating a brand-new Task"
+strict order, see `thinkwise-sf-control-procedures`'s "Creating a brand-new Task"
 section), a subroutine has **no chicken-and-egg gate**: create the `subroutine` row, then its
 `subroutine_parmtr`/`subroutine_return_col` children, in any order, all through ordinary
 `stage_resource`/`patch_resource`/`commit_resource` calls.
@@ -84,7 +85,7 @@ section), a subroutine has **no chicken-and-egg gate**: create the `subroutine` 
 `none` 0, `scalar` 1, `table` 2), `return_scalar_dom_id` (domain, only for `scalar`), `return_table_id`
 (a free-text label for the returned shape — **not** a foreign key to `tab`; it just names the result set
 for documentation/generated-type purposes), `subroutine_description`, `single_transaction` (bool — the
-"Atomic transaction" checkbox), `generation_order_no` (int — see "Generation order" below),
+"Atomic transaction" checkbox, procedures only), `generation_order_no` (int — see "Generation order" below),
 `alias_subroutine_id` (subroutine alias), `api` / `basic_api` (bool), `api_alias`, `new_object_status`,
 `generated_by_control_proc_id`.
 
@@ -128,7 +129,7 @@ pick by *behavior*, not availability:
 - If the request doesn't clearly imply which shape the caller actually needs — e.g. it's ambiguous
   whether a created id/status matters to the caller, or whether a single row vs. many rows is
   expected — ask the user rather than picking from the list above unilaterally
-  (`thinkwise_sf_base`'s "Ask, don't default").
+  (`thinkwise-sf-base`'s "Ask, don't default").
 
 ## Subroutine options — verified per type (SQL Server model)
 
@@ -158,7 +159,7 @@ describe behavior; wrong determinism metadata can lead to invalid optimizer assu
 
 ## Plan first
 
-Apply `thinkwise_sf_base`'s "Shared conventions" **Confirm-before-mutate** rule
+Apply `thinkwise-sf-base`'s "Shared conventions" **Confirm-before-mutate** rule
 here: before the first `stage_resource` call, state the proposed contract in plain language and get
 the user's explicit confirmation — don't create any row first and adjust after the fact. For a
 subroutine, that contract is:
@@ -169,7 +170,7 @@ subroutine, that contract is:
   list — see "Choosing the return shape" below.
 - **Parameters** — name, direction (input/output), and domain for each — see "Parameter design"
   below.
-- **`single_transaction`** setting — see "Transaction behavior" below.
+- **`single_transaction`** setting (procedures only) — see "Transaction behavior" below.
 - **API exposure** — confirmed off unless the user has actually asked for it — see "Publishing as
   an API" below.
 
@@ -225,15 +226,15 @@ output-parameter-explosion, and the rest).
 
 ## Pre-flight checklist
 
-- Create through `sf/manage_subroutines`, not the read-only `subroutine` stub in
-  `sf/manage_control_procedures`.
+- (Indicium · split-domain) Create through `sf/manage_subroutines`, not the read-only `subroutine`
+  stub in `sf/manage_control_procedures`.
 - `return_table_id` is a free-text label, not a `tab` foreign key — don't go looking for it in the data
   model.
 - No creation-order gate like Task's `task`→`tab_task`→`task_parmtr` chain — `subroutine`,
   `subroutine_parmtr`, `subroutine_return_col` are all directly writable in any order.
-- Grant role execute rights (`role_subroutine_overview.model_rights`, flip `granted`) — a clean
-  generation status proves nothing about who can call the routine.
-- Write the body by following `thinkwise_sf_control_procedures` end to end:
+- Grant role execute rights (`role_subroutine_overview`, flip `granted`; super-user roles are
+  granted automatically) — a clean generation status proves nothing about who can call the routine.
+- Write the body by following `thinkwise-sf-control-procedures` end to end:
   `FUNCTIONS`/`TABLE_VALUED_FUNCTIONS`/`PROCEDURES` code group, `func_`/`proc_` `prog_object_id` prefix,
   bare `subroutine_id` as the real generated object name, Static assignment,
   `program_object_item`/`control_proc_type = 1`.

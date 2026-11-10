@@ -1,6 +1,6 @@
 # Table-level conditional_layout, conditions, and tags — field reference
 
-Loaded on demand from `thinkwise_sf_conditional_layouts`.
+Loaded on demand from `thinkwise-sf-conditional-layouts`.
 
 ## Table-level `conditional_layout` — field reference
 
@@ -14,7 +14,8 @@ Keyed by `(model_id, branch_id, tab_id, conditional_layout_id)`.
 | `apply_to_grid` / `apply_to_form` / `apply_to_edit` / `apply_to_scheduler_resource` | Independent boolean flags — **not** a single enum. (A synthetic example with one combined `apply_conditional_layout` field is not the real shape; ignore any doc that implies a single field here.) |
 | `font_id` | Legacy Windows-GUI-only named font — verified as a thin `(font_id, font_info)` lookup, superseded by `font_size` (L/XL) for Universal UI. Leave unset for new Universal UI work. |
 | `background_color` | Legacy single Windows-GUI-only background colour (`Edm.Int32`). No `font_color` legacy equivalent exists — only background has this legacy/theme-pair asymmetry. |
-| `background_color_light` / `background_color_dark` | **Universal UI** per-theme background colour — set both |
+| `background_color_light` / `background_color_dark` | **Universal UI** per-theme background colour — set both. A background colour is these two fields alone |
+| `background_type` | Hidden on an add unless `apply_to_scheduler_resource` is `true`; the Software Factory stores `0` (none) itself. Existing layouts read back `0` — don't copy it into a write |
 | `font_color_light` / `font_color_dark` | **Universal UI** per-theme font colour — set both |
 | `bold` / `italic` / `underline` / `strikethrough` | Booleans |
 | `font_size` | Enum: `L` = `0`, `XL` = `1`. Absent = default size |
@@ -30,11 +31,13 @@ layouts are the exception — `scheduler_view_conditional_layout` is keyed with 
 
 Bound tasks: `task_copy_conditional_layout` (`from_tab_id`/`from_conditional_layout_id`/
 `to_tab_id`/`to_conditional_layout_id`), `task_delete_conditional_layout`,
-`task_rename_conditional_layout`, `task_show_history`, `task_unlink_generated_object`.
+`task_rename_conditional_layout`, `task_show_history`, `task_unlink_generated_object`. A delete
+leaves the layout's `transl_object` rows (types 44/45) behind — delete those too (see
+`thinkwise-sf-translations`).
 
 **Creating this row, verified**: a plain/unscoped add of a new `conditional_layout` record is rejected
 as a weak/dependent-entity error, with candidate parents `tab` or `model_settings_modeler` — the same
-shape of rejection documented for `scheduler` in `thinkwise_sf_schedulers`. Add
+shape of rejection documented for `scheduler` in `thinkwise-sf-schedulers`. Add
 it as a detail of its owning `tab` record (supplying `model_id`/`branch_id`/`tab_id` as the parent key)
 rather than as a standalone create.
 
@@ -44,8 +47,12 @@ Keyed by `(model_id, branch_id, tab_id, conditional_layout_id, conditional_layou
 layout's conditions are AND-ed together; a layout with zero condition rows is always applied
 (`show_conditional_layout` permitting). `conditional_layout_condition_no` is typically presented as a
 non-editable/system-assigned field when adding a new condition through a staged create flow — the
-platform assigns its actual value on commit rather than the caller supplying one; don't try to compute
-or guess a sequential number for it.
+platform assigns its actual value on commit rather than the caller supplying one. It is a global
+identity value, not a 1..n sequence per layout — don't compute or guess it. Because the number is
+assigned on commit, the key can't tell a
+repeated add from a new condition: before adding, check for an identical condition under the same
+layout and skip the add if one exists. To change a condition, read its number first and edit it by
+the full key.
 
 | Field | Notes |
 |---|---|
@@ -66,7 +73,10 @@ delimited list) — test against a live add before relying on a specific separat
 
 Real verified example (`booking_hour.friday_total_hours_greater_than_8`): one condition row,
 `col_id = total_hours_friday`, `condition = 2` (greater_than), `type_of_value = 0` (constant),
-`value = "8"`. A believable corrected shape of the doc's illustrative JSON:
+`value = "8"`. A believable corrected shape of the doc's illustrative JSON. The layout
+record is shown as a write, so `background_type` (set by the Software Factory) is left out;
+`apply_to_edit` is sent as `false` because it defaults to `true` on add — leave it at `true` only when
+the layout should show while editing (see the `apply_to_edit` rule in the skill):
 
 ```json
 {
@@ -76,7 +86,7 @@ Real verified example (`booking_hour.friday_total_hours_greater_than_8`): one co
   "col_id": "order_status",
   "apply_to_grid": true,
   "apply_to_form": true,
-  "apply_to_edit": true,
+  "apply_to_edit": false,
   "apply_to_scheduler_resource": false,
   "background_color_light": -4684277,
   "background_color_dark": -4684277,
@@ -88,14 +98,14 @@ Real verified example (`booking_hour.friday_total_hours_greater_than_8`): one co
 {
   "tab_id": "purchase_order",
   "conditional_layout_id": "order_status_completed",
-  "conditional_layout_condition_no": 12345,
   "col_id": "order_status",
   "condition": 0,
   "type_of_value": 0,
   "value": "COMPLETED"
 }
 ```
-The numeric colour/enum values represent platform enumerations — maintain these through the Software
+No `conditional_layout_condition_no` in the add — the Software Factory assigns it on commit; read it
+back afterwards. The numeric colour/enum values represent platform enumerations — maintain these through the Software
 Factory's own named settings rather than hand-editing the integers.
 
 ### `conditional_layout_tag`

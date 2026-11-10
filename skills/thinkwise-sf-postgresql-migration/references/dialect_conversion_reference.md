@@ -2,7 +2,7 @@
 
 Everything here was hit and verified live while porting a real model's hand-written SQL (control
 procedures, calculated fields, prefilters). This complements — doesn't replace —
-`thinkwise_sf_control_procedures`'s `references/sql_dialects.md`, which covers
+`thinkwise-sf-control-procedures`'s `references/sql_dialects.md`, which covers
 all four platforms in general; this file is PostgreSQL-migration-specific and includes the structural
 rewrites that table doesn't attempt to cover.
 
@@ -54,7 +54,7 @@ argument's type output function internally).
 **Fix**: replace `concat` with `||` — immutable for ordinary text domains. If the original
 expression relied on `concat`'s NULL-to-empty-string behavior, wrap each operand instead of a
 bare operator swap: `coalesce(x, '') || coalesce(y, '')`. See
-`thinkwise_sf_control_procedures`'s `references/sql_dialects.md` for the
+`thinkwise-sf-control-procedures`'s `references/sql_dialects.md` for the
 general rule — check this for *any* function used in a `calculated_column` expression being
 ported, not just `concat`.
 
@@ -127,7 +127,7 @@ end if;
 `prog_object_id` concatenate into one generated body in `order_no` order, and a local variable
 `declare`d in an early (pre-mutation) item is visible to a later (post-mutation) item in the same
 object — a documented, legitimate way to carry a captured "before" value across the mutation
-(see `thinkwise_sf_control_procedures`'s note on this).
+(see `thinkwise-sf-control-procedures`'s note on this).
 
 **Why it breaks on PostgreSQL**: the framework's own PostgreSQL wrapper item (`handler_start`) ends
 with a bare `begin` — there is no top-level `declare` section for custom items to extend, and PL/pgSQL

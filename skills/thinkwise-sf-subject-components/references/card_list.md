@@ -60,7 +60,7 @@ say what they are).
    good card layout can't fix a poorly ordered queue.
 6. Place a Card List leaf panel on the subject's screen type.
 7. For a variant that needs a different card layout, run `task_setup_tab_variant_card_list_overview`
-   first (per `thinkwise_sf_variants`), then edit `tab_variant_card_list`.
+   first (per `thinkwise-sf-variants`), then edit `tab_variant_card_list`.
 
 ## Best practices and pitfalls
 

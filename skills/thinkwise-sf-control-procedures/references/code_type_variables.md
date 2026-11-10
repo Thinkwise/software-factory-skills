@@ -12,7 +12,7 @@ the object (e.g. `@activated_type` for a Layout on column `activated`).
 | Handler | Insert: all columns; Update: all columns + PK; Delete: PK only | Insert: identity via `SCOPE_IDENTITY` (Oracle/DB2: mutable `m_`-prefixed locals mirroring `in out` params, since those platforms disallow mutating `in` parameters) |
 | Change detection | `@variant_id`, `@last_refresh_utc` (null if never refreshed), `@[col_id]` (detail-mapped columns only) | `@refresh_data` (0/1, default 0) |
 | Badge | `@variant_id`, `@[col_id]` (column/linked task or report parameter that's part of a detail FK) | `@badge_value` (integer; `null` hides the badge) |
-| Process | `@[process_variable_id]` (flow variables marked Process input/output available) | `@[action_id]_[follow_up_process_action_id]` (int) — positive follows that step and orders execution, null/0/negative skips it. Program object `prc_<flow_id>_<action_id>` |
+| Process | `@[process_variable_id]` (flow variables marked Process input/output available) | One `int` switch per outgoing step, named after its `process_step_id` (`@<process_step_id>`; `p_<process_step_id>` on PostgreSQL) — positive follows that step and orders execution, null/0/negative skips it. Step ids conventionally read `<action_id>_<next_action_id>`, so the switch usually looks like `@<action_id>_<next_action_id>`. Program object `prc_<flow_id>_<action_id>` |
 | Task | Same Default/Layout mechanism as tables, but `@[col_id]` is a task parameter, not a column | Same as Default/Layout; Layout only affects form styling (tasks have no grid) |
 
 **Handler PK parameter on Update: two different values, easy to swap by mistake.** The "all columns +
@@ -49,12 +49,18 @@ Omitting the guard when "once, then leave it alone" was actually wanted is what 
 like it's fighting the user — the value keeps getting reset on unrelated field changes.
 
 **Variable name prefix is dialect-dependent.** The table above uses the T-SQL `@[col_id]` form.
-Verified on a real PostgreSQL model: the same variables are named `p_[col_id]` (e.g. `p_start_date`,
-`p_default_mode`), and assignment uses `:=` instead of `set … =` (`p_release_date := current_date;`
-not `set @release_date = current_date`). Don't assume `@`-prefixed T-SQL syntax carries over —
-confirm the model's RDBMS (control procedure IDs prefixed `pg_*` are a quick tell for PostgreSQL) and
-grep an existing template in the same code type for the real prefix/assignment style before writing
-new code.
+Verified on a real PostgreSQL model: the generated procedure names columns, task and subroutine
+parameters and the code type's own variables `p_<id>` (e.g. `p_start_date`, `p_default_mode`; a task
+parameter with an alias is `p_<alias>`), and process-step switches `p_<process_step_id>`. Use
+`v_<name>` only for a local the template declares itself (`declare v_total numeric; begin … end;`),
+never for these. Assignment uses `:=` instead of `set … =` (`p_release_date := current_date;` not
+`set @release_date = current_date`). **PL/pgSQL resolves names at run time, so a wrong prefix passes
+code generation and fails only when the procedure executes.** Don't assume `@`-prefixed T-SQL syntax
+carries over — confirm the model's RDBMS (control procedure IDs prefixed `pg_*` are a quick tell for
+PostgreSQL) and grep an existing template in the same code type for the real prefix/assignment style
+before writing new code. **Oracle and DB2** prefix every variable and parameter with `v_`
+(`@order_total` → `v_order_total`); a Handler's mutable copies of `in out` parameters use `m_` (see
+the Handler row above). Read one generated procedure on the branch to confirm before writing.
 
 ## Getting the current user
 

@@ -18,10 +18,10 @@ is a curated set of places to begin, not an inventory of every model object.
   foreign keys.
 - **Work queues and exception lists** — "Orders to approve," "Picking work," "Failed integrations" —
   when genuinely actionable. Prefer one subject variant or prefiltered subject over many near-identical
-  entries per status (see `thinkwise_sf_prefilters` / `thinkwise_sf_variants`).
+  entries per status (see `thinkwise-sf-prefilters` / `thinkwise-sf-variants`).
 - **Global tasks** startable without selecting a record — start a planning run, import orders,
   synchronize master data, open a work shift. If the task acts on a *selected* record, it belongs on
-  that subject's action bar/context instead, not the menu (see `thinkwise_sf_tasks`).
+  that subject's action bar/context instead, not the menu (see `thinkwise-sf-tasks`).
 - **Global or frequently-requested reports** whose parameters supply enough context on their own.
   Reports tied to a selected customer/order/invoice/shipment are usually better offered from that
   subject.
@@ -97,7 +97,7 @@ from the group names alone. Don't mix incompatible categories (e.g. **Sales**, *
 - **Avoid redundant suffixes** — "Sales" beats "Sales menu group"; inside Administration, "Users" beats
   "User administration management."
 - **Translate labels, stabilize IDs** — lower-case, consistent IDs (`production_planning`), translated
-  into every application language (see `thinkwise_sf_translations`). Don't encode a
+  into every application language (see `thinkwise-sf-translations`). Don't encode a
   temporary organizational owner or display order into the ID — sequence belongs in `order_no`, not the
   name (see "Ordering" below).
 
@@ -137,13 +137,13 @@ Many items found crowding an oversized menu belong closer to their context inste
 
 - **Details** for child data (reached via master-detail, not a top-level menu entry).
 - **Task/report buttons** on the subject, for record-specific actions and output
-  (`thinkwise_sf_tasks`).
-- **Process flows** for guided multi-step work (`thinkwise_sf_process_flows`).
-- **Prefilters** for alternate states of the same subject (`thinkwise_sf_prefilters`).
-- **Variants** for role- or purpose-specific presentation (`thinkwise_sf_variants`).
+  (`thinkwise-sf-tasks`).
+- **Process flows** for guided multi-step work (`thinkwise-sf-process-flows`).
+- **Prefilters** for alternate states of the same subject (`thinkwise-sf-prefilters`).
+- **Variants** for role- or purpose-specific presentation (`thinkwise-sf-variants`).
 - **Dashboards, badges, and work queues** for exceptions
-  (`thinkwise_sf_control_procedures`'s Badge guidance,
-  `thinkwise_sf_cubes`).
+  (`thinkwise-sf-control-procedures`'s Badge guidance,
+  `thinkwise-sf-cubes`).
 - **Deep links** from notifications for a specific record.
 
 The menu's job is to get users into the right workspace; the workspace then exposes the next relevant

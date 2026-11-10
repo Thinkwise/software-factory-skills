@@ -7,25 +7,22 @@ description: Reference guide for setting up and maintaining a maps component in 
 
 Reference for the maps component's full lifecycle: source column → `map` → `map_base_layer`/
 `map_overlay` → `map_data_mapping` → (optionally) drawable-shape task wiring → (optionally) an
-external-API pipeline that populates the map's coordinates. Every entity/field name below was
-confirmed live against a real model (`sf/manage_maps` domain, 32 entity sets) and against a working
-reference application (`MAPS_AND_ROUTES`) that implements address geocoding and route calculation —
-not guessed from documentation.
+external-API pipeline that populates the map's coordinates. The worked examples come from a reference
+application (`MAPS_AND_ROUTES`) that implements address geocoding and route calculation.
 
-Apply this whenever an MCP connector with Software Factory access (`sf_mcp`, `indicium`) is used to
-create, inspect, or troubleshoot a maps component `map`/`map_base_layer`/`map_overlay`/`map_data_mapping` typically live in a `manage_maps`-style
-domain; the map's source `tab`/`col`/`dom`/`ref` live in a `manage_datamodel`-style domain;
-`control_proc`/`control_proc_template` live in a `manage_control_procedures`-style domain;
-`web_connection`/`web_connection_endpoint` live in a `manage_webconnections`-style domain;
-`process_flow`/`process_action` live in a `manage_process_flows`-style domain — try these directly
-first, and only escalate to `search_capabilities`/`get_available_domains` on an
-`entity_set_not_found`/`domain_not_found`-style rejection rather than re-discovering a domain that
-already resolved earlier this session.
+Apply this whenever an MCP connector with Software Factory access is used to create, inspect, or
+troubleshoot a maps component. Domain: split-domain instances `sf/manage_maps` for
+`map`/`map_base_layer`/`map_overlay`/`map_data_mapping`; single-domain `sf/software_development` for
+everything; otherwise find it with `search_domain_capabilities`. **(Indicium · split-domain)** The
+surrounding objects sit in their own domains: `tab`/`col`/`dom`/`ref` in `sf/manage_datamodel`,
+`control_proc`/`control_proc_template` in `sf/manage_control_procedures`,
+`web_connection`/`web_connection_endpoint` in `sf/manage_webconnections`, `process_flow`/`process_action`
+in `sf/manage_process_flows`. Reuse a domain key that already resolved this session.
 
 For general data-modeling rules (naming, domain reuse, reference direction) see
-`thinkwise_sf_data_model`. For control-procedure mechanics (code groups, static vs. SQL
+`thinkwise-sf-data-model`. For control-procedure mechanics (code groups, static vs. SQL
 assignment, `branch_rdbms_type`, and — critically — the two-step "generate code group" then
-"generate object code" sequence) see `thinkwise_sf_control_procedures`; every
+"generate object code" sequence) see `thinkwise-sf-control-procedures`; every
 control procedure referenced below is created and generated exactly that way. This skill only covers
 what's specific to maps.
 
@@ -79,7 +76,7 @@ concat('{ "CoordSets": [ [ { "Lon": "', t1.longitude, '", "Lat": "', t1.latitude
 ```
 
 **Check `branch_rdbms_type` before writing this kind of SQL.** See the
-`thinkwise_sf_control_procedures` skill for the full dialect-check walkthrough;
+`thinkwise-sf-control-procedures` skill for the full dialect-check walkthrough;
 the essential rule is: never assume SQL Server syntax works on PostgreSQL, or vice versa — verify
 first. Specifically for CoordSets: `concat(...)` works as shown on SQL Server; on PostgreSQL the
 equivalent is typically `json_build_object('CoordSets', json_build_array(json_build_array(
@@ -122,16 +119,18 @@ For the full per-entity field reference and the domain-element matching contract
 0. **Confirm scope with the user before creating anything** — which table needs the map, what
    geometry types it needs (marker/line/polygon/rectangle/circle, or a mix), the initial center/zoom,
    which tile provider(s) to use, and whether end-user drawing (Geometric Type Creation) is needed.
-   This is `thinkwise_sf_base`'s "Shared conventions" — Confirm-before-mutate and
+   This is `thinkwise-sf-base`'s "Shared conventions" — Confirm-before-mutate and
    Ask, don't default — applied to a map specifically: don't create the coordinate column, the `map`
    row, or anything else in the steps below until this is settled.
-1. **Confirm the connector's actual domain keys** for maps / data model / control procedures
-   (`search_capabilities` or `get_available_domains`) — don't assume `manage_maps` etc. literally.
+1. **Confirm the connector's actual domain keys** for maps / data model / control procedures from
+   the connector's server instructions (see `thinkwise-sf-base`) — one domain on a single-domain
+   instance, several on a split-domain one. Don't call `get_available_domains` for this.
 2. **Get (or build) a CoordSets-producing column** on the target table — a calculated field per "The
    CoordSets JSON contract" above, checking `branch_rdbms_type` first if hand-writing the SQL.
-3. **Create the `map` row** for the table: set `latitude_longitude_col_id` to that column,
+3. **Create the `map` row** for the table. Send `tab_id` first — it clears the column fields — and
+   set the three column fields after it: `latitude_longitude_col_id` to that column,
    `data_mapping_col_id` to a domain-based column, `popup_col_id` to whatever should show on click,
-   and `initial_latitude`/`initial_longitude`/`initial_zoom_level` from what the user confirmed in
+   and `initial_latitude`/`initial_longitude`/`initial_zoom_level` (mandatory) from what the user confirmed in
    step 0 — if that wasn't pinned down yet, ask for the initial center/zoom now, or infer it from a
    known reference row already confirmed with the user, rather than picking an arbitrary default.
 4. **Add at least one `map_base_layer`** with a working tile URL template, a zoom range that matches
@@ -142,23 +141,21 @@ For the full per-entity field reference and the domain-element matching contract
    — pick `geometric_type` per element; for `line`/`polygon`/`rectangle`/`circle` elements, also set
    border/fill styling, decoding/encoding colors per the formula below; for `marker` elements, set an
    `icon` on the element instead (see the marker exception above) and leave color fields untouched.
-   **API limitation: `map_data_mapping` could not be created or edited through a
-   metadata-driven staging API in a verified session.** Its key spans two independent "parents" at
-   once (`tab_id`, reached via `map`; `dom_id`/`elemnt_id`, reached via the domain's elements), and
-   every path tried failed in a different way: staging under `map` or `tab` as parent reported no
-   detail navigation to this entity; staging under `dom` as parent reported no such parent at all for
-   this entity; a plain add with no parent left every key field permanently read-only, so even
-   supplying the full compound key as ordinary fields (the usual fallback for this shape of weak
-   entity — see `thinkwise_sf_data_model`) never became possible; and its own `_overview`
-   sibling entity (which does resolve a detail navigation from `map`, and confirms the
-   `map_data_mapping_id`-must-equal-an-`elemnt_id` contract via a `lookup_map_data_mapping_id → elemnt`
-   navigation) was rejected outright on commit. Don't spend a session's budget chasing this — treat it
-   as a manual step in the Software Factory's own UI by default, and only revisit if a specific
-   connector's domain metadata is confirmed to expose it differently.
+   Don't *add* these rows: once the `map` row and its `data_mapping_col_id` exist, the Software
+   Factory already lists one candidate row per domain element in `map_data_mapping_overview`
+   (`allow_add = false`, `allow_update = true`), with `show_map_data_mapping` false.
+   - **(Indicium · single-domain)** Edit each candidate by its full key (`model_id`, `branch_id`,
+     `tab_id`, `dom_id`, `map_data_mapping_id`): set `geometric_type`, the styling and
+     `show_map_data_mapping` = true. The edit turns it into a real `map_data_mapping` row; read it
+     back there. A flat `map_data_mapping` add stages but leaves every key field read-only and null,
+     and an add under `map` gives `detail_nav_not_found` — neither can be completed.
+   - **(Indicium · split-domain)** Every add route failed, and the `_overview` edit was rejected on
+     commit. Try the overview edit once; if it is refused, this is a manual step in the Software
+     Factory.
 6. **Verify the eligible domain elements' `elemnt_id`s exactly match the `map_data_mapping_id`s
    created** — a mismatch silently leaves some rows unstyled rather than erroring.
-7. Only if the table needs end-user drawing: wire the relevant `*_location_task_parmtr_id` field(s)
-   on `map` — see "Drawable shapes" next.
+7. Only if the table needs end-user drawing: wire the relevant `add_<shape>_task_id` and then
+   `<shape>_location_task_parmtr_id` field(s) on `map` — see "Drawable shapes" next.
 8. Only if coordinates come from an external service rather than user input or plain columns: build
    the web-connection/process-flow/control-procedure pipeline — see "External-API pattern" below.
 
@@ -189,12 +186,15 @@ to mutate/inspect map configuration programmatically:
 | `map` | `task_delete_map`, `task_show_history`, `task_unlink_generated_object` |
 | `map_base_layer` | `task_copy_map_base_layer`, `task_delete_map_base_layer`, `task_rename_map_base_layer`, `task_show_history`, `task_unlink_generated_object` |
 | `map_overlay` | `task_copy_map_overlay`, `task_delete_map_overlay`, `task_rename_map_overlay`, `task_show_history`, `task_unlink_generated_object` |
-| `map_data_mapping` | `task_show_history`, `task_unlink_generated_object` (no copy/rename — delete and re-add to change its key) |
+| `map_data_mapping` | `task_show_history`, `task_unlink_generated_object` (no copy/rename; rows come from the domain's elements, see step 5) |
 | `tab_variant_map` / `_base_layer` / `_overlay` / `_data_mapping` | `task_reset_tab_variant_map_overview`, `task_reset_tab_variant_map_base_layer_overview`, `task_reset_tab_variant_map_overlay_overview`, `task_reset_tab_variant_map_data_mapping_overview` — revert an override back to the table-level default |
 
 `task_copy_map_base_layer` / `task_copy_map_overlay` take `from_tab_id`/`from_map_base_layer_id`/
 `to_tab_id`/`to_map_base_layer_id` (or the overlay equivalents) — useful for cloning a working tile
 setup onto a new table rather than re-typing URIs and zoom ranges.
+
+The delete tasks leave the object's `transl_object` rows behind — delete those too (see
+`thinkwise-sf-translations`).
 
 ## Known pitfalls (Community-verified)
 
@@ -228,8 +228,13 @@ setup onto a new table rather than re-typing URIs and zoom ranges.
   them; set the domain element's `icon` instead. Decode/encode `border_color`/`fill_color` as
   signed-32-bit ARGB using the ⟨alpha, red, green, blue⟩ formula above only for the other four
   geometric types.
-- Expect `map_data_mapping` itself to be unstageable through a metadata-driven write API — confirm the
-  connector's own behavior before assuming otherwise, and default to treating it as a manual step.
+- `map_data_mapping` rows are not added: edit the pre-listed candidate per element in
+  `map_data_mapping_overview` **(Indicium · single-domain)**; on refusal a manual step in the
+  Software Factory **(Indicium · split-domain)** — see step 5.
+- `allow_drag_drop` is only shown (and only applies) for `marker` rows; it is hidden for the other
+  geometric types.
+- `map.initial_zoom_level` is mandatory; set each `add_<shape>_task_id` before its
+  `<shape>_location_task_parmtr_id` (hidden until the task is set).
 - `map_base_layer`/`map_overlay` `max_zoom_level` must match what the tile provider actually serves,
   not an aspirational value.
 - Bearer/OAuth2-secured **tile layers** need a proxy; bearer/OAuth2-secured **API calls** for

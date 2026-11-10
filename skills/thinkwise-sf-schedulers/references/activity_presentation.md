@@ -1,6 +1,6 @@
 # Scheduler activity presentation — conditional layout and HTML formatting
 
-Loaded on demand from `thinkwise_sf_schedulers`.
+Loaded on demand from `thinkwise-sf-schedulers`.
 
 ## Conditional layout — activities
 
@@ -8,7 +8,7 @@ An ordinary `conditional_layout` row on the Scheduler's subject, scoped to a col
 separate "activity colour" concept. Set `show_conditional_layout = true`, pick the column (blank =
 whole row), configure background/font colour per theme plus bold/italic/underline/strikethrough and
 size, then add `conditional_layout_condition` rows. For the full field reference, condition enum, and
-known gaps/pitfalls of this entity family, see `thinkwise_sf_conditional_layouts` — this
+known gaps/pitfalls of this entity family, see `thinkwise-sf-conditional-layouts` — this
 section only covers what's Scheduler-specific (the HTML interaction below, and the resource variant
 next).
 
@@ -40,7 +40,7 @@ working capacity engine; in production these would come from a real rostering/av
 
 ### Ask before building: what should an activity look like?
 
-Before setting a control type on the title/tooltip column, ask the user directly (`AskUserQuestion`)
+Before setting a control type on the title/tooltip column, ask the user (see `thinkwise-sf-base` §1)
 how they want an activity to render — don't default to HTML just because it's the richest option:
 
 - **Single line** — plain text, one line, no wrapping. Domain control type stays plain/default.

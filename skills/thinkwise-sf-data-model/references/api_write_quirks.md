@@ -9,33 +9,31 @@ UI directly, not assumed:
   field, a table's table-type field, and a scheduler-style grouping-type field — three unrelated
   entities, same failure shape. If a plain enum key string is rejected, retry the same write using the
   raw underlying numeric value for that enum member instead of its name.
-- **Some individual fields can silently fail to persist when set together with other fields in one
-  write, with no error returned at all.** Not limited to any one field shape — confirmed across
-  description-style long-text fields (committing successfully but not actually saving the text),
-  sequence/order-number fields (independently on a domain-element-style child row's own field and on a
-  menu item's `order_no`), boolean flags (a task's confirmation-prompt toggle, a table-task's
-  enable-when-no-row-selected toggle), and plain string/identifier fields (a look-up column-mapping's
-  target parameter id, a menu item's target-table id). Seen across at least five different entity types
-  spanning task, table-task, task-look-up, control-procedure, and menu objects in one session — this is
-  general write-API behavior, not a quirk of order-number or description fields specifically. Treat
-  **any** field as suspect after a combined write, not just those two shapes. A separate session
-  building over 20 records through this same kind of write flow saw the drop land specifically on the
-  **last property in the write's ordered list, every single time** — never a first or middle one —
-  which makes the last field the single highest-value one to check (or just always re-send) first,
-  even though in principle any field can be affected. After any multi-field write to a record, re-read
-  back the fields that matter before moving on, and if one didn't take, retry it alone in an isolated
-  single-field write — when scripting many records in sequence, patching one field per call (verifying
-  each response) is the safer default over batching several fields per call, even though batching
-  usually works.
-  **Counter-observation (~100 near-identical weak-entity creates in one session —
-  `elemnt`, `transl_object_transl`, `list_bar_item`):** setting *every* field in the record's own
-  initial `stage_resource` `properties` array — with the dependent field last, and **no follow-up
-  `patch_resource` at all** — held with zero drops across all ~100. The drop hazard concentrates in
-  *iterative `patch_resource` calls against an already-staged resource* and in the *last* property of
-  a combined write. So the lower-round-trip pattern is safe *when you use it as `stage_resource` +
-  one commit*: put all fields in `properties` (dependent field last), commit, re-read once. Reserve
-  the strict one-field-per-`patch_resource` isolation for post-stage edits to an existing record, or
-  after a drop has actually been observed.
+- **A combined write stops at the first property it refuses; the properties after it are not
+  applied.** A field that is hidden or read-only for the record as it stands is refused
+  (`field_not_editable`/`no_field_view`) and everything after it in the ordered list lands in
+  `not_applied` — when the refused field happens to be last, it looks like "the last property silently
+  dropped". Seen across task, table-task, task-look-up, control-procedure, menu, domain, and column
+  writes, on every field shape (description text, order numbers, boolean flags, identifiers) — general
+  write behavior, not a quirk of one field. The mechanism and the ordering rule live in
+  `thinkwise-sf-base`'s "Hazards once real writes start". Practical pattern, held with zero drops across
+  ~100 near-identical weak-entity creates (`elemnt`, `transl_object_transl`, `list_bar_item`): put
+  every field in the initial `stage_resource` `properties` array, enabling fields before the fields
+  they open, commit once, and re-read every written field.
+- **Some fields only open once another field has a value.** Send the controlling field first (earlier
+  in the same write, or in an earlier write):
+  - `default_value` (constant) is editable only while `type_of_default_value` is 0 (constant); send it
+    as text.
+  - `grp_until` opens only once `default_sort` is true on that column.
+  - `aggregation_summary_type` is hidden until `show_aggregation_in_grid` is true, then editable and
+    mandatory; send it as a number (`"sum"` is refused) — see `references/grid_grouping.md`.
+  - A primary key column gets `mand = true`, read-only.
+  - `tab.allow_add = false` makes the Software Factory set `allow_copy = false` itself and lock it; an
+    edit that sends only `allow_copy` has no editable field and fails with `no_field_view`.
+  - `dom.rdbms_type` is not editable — never send it.
+  - Fields the Software Factory sets itself: a numeric data type gets `alignment` 1 (right), and a
+    `TIMESTAMP` data type gets control `DATETIME` (see also the `control_id`/alignment trap in
+    `references/domains_and_elements.md`).
 - **A table's child rows can carry their own separate NOT-NULL order-number field(s), distinct from
   and in addition to whatever `order_no` the row already has, with no database default.** Verified
   live on `col`: beyond its own `order_no`, a newly-inserted column also has `filter_order_no`,
@@ -64,7 +62,7 @@ UI directly, not assumed:
   silent no-op) — unconfirmed root cause, but consistent with such fields routing through the
   translation-object mechanism rather than a plain column patch, at least before the record's first
   commit. If a description-style field's write is rejected this way, skip it during initial creation
-  and set it afterward via `thinkwise_sf_translations` instead of retrying the
+  and set it afterward via `thinkwise-sf-translations` instead of retrying the
   same patch.
 - **Never trust an unfiltered query to confirm an object exists in the model you're working in.** Many
   entity sets (e.g. `screen_type`) are not scoped to "the current model" by default — a query with no
@@ -72,13 +70,13 @@ UI directly, not assumed:
   branch in the same shared repository. A match under a bare `contains(...)`-only filter is not proof
   the object is usable in your model; always re-run the check with `model_id`/`branch_id` filters added
   before relying on the result — e.g. before assigning a system-provided screen type by name.
-- **Creating a new `screen_type` (and placing components/leaf panels onto it) is not currently
-  possible through this kind of write API.** Treat screen type creation as a manual Software Factory
-  UI step, and always plan around reusing a screen type that already exists in the model rather than
-  assuming one can be created on demand. See `thinkwise_sf_build_planner`'s
-  interaction-surface step for how to choose among existing screen types — including asking the user
-  what the screen should look like, and flagging a manual-creation prerequisite when nothing existing
-  fits.
+- **A new `screen_type` and its `screen_component` tree can be created through the write API**
+  (verified on SF 2026.2; earlier sessions concluded otherwise). Components go under the screen type
+  with an explicit `detail_nav` (the parent has two), and the Software Factory accepts a broken
+  component tree without error — see `thinkwise-sf-subject-components`'
+  `references/screen_types.md`. Still prefer reusing an existing screen type; see
+  `thinkwise-sf-build-planner`'s interaction-surface step for asking the user what the screen should
+  look like.
 - **A blanket rejection on writes to an entity that should be editable can be a Software Factory
   role/rights gap on the current session's account, not a structural API limitation.** Confirmed live:
   an entity family that consistently rejected every add/edit attempt across several different approaches

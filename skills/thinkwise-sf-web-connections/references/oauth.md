@@ -6,20 +6,23 @@ request body*, the default, or *as Basic Auth header*), **PKCE requirement** (on
 for the user-login connector specifically — **Request Refresh Token** and **Prompt behaviour**
 (*Consent* / *Login* / *Select Account* / *None*), plus the authorization and token endpoint URLs.
 
-> **API gap:** `get_entity_definition` against `oauth_server` in
-> `sf/manage_webconnections` returns **only** `model_id`, `branch_id`, `oauth_server_id`, and
-> `generated_by_control_proc_id` — none of the client id/secret/endpoint/PKCE/delivery-method fields
-> above are exposed as properties on this entity through this API. Either those fields live somewhere
-> else not yet located (a related entity, a different domain) or OAuth server configuration is only
-> possible via the Software Factory's own UI for now. **Don't assume an OAuth server can be fully provisioned end-to-end through this
-> connector** — confirm by attempting a `stage_resource`/`patch_resource` against a spare field name
-> from the docs (it should reject with a clear "unknown property" if truly absent) before promising a
-> user a hands-off OAuth server setup, and update this note once resolved either way.
+> **Field exposure depends on the domain layout.**
+> - **(Indicium · single-domain)** `oauth_server` in `sf/software_development` exposes the
+>   configuration: `authorization_url`, `token_url`, `client_id`, `client_secret`, `scope`, `prompt`,
+>   `request_refresh_token`, `response_type`, `client_authentication_mode` (body/header),
+>   `require_pkce`, `encryption_used`, plus the bound task `task_encrypt_oauth_key` for an encrypted
+>   client secret.
+> - **(Indicium · split-domain)** `oauth_server` in `sf/manage_webconnections` returns **only**
+>   `model_id`, `branch_id`, `oauth_server_id` and `generated_by_control_proc_id`. Search the other
+>   domains for a writable `oauth_server` before planning the configuration as a manual step in the
+>   Software Factory.
+>
+> Either way, read the entity definition before promising a user a hands-off OAuth server setup.
 
 ### The three OAuth process actions
 
-These live in `sf/manage_process_flows` as ordinary `process_action_type` values, not under
-`sf/manage_webconnections`:
+These are ordinary `process_action_type` values on the process-flow side, not part of the
+connection graph:
 
 | Connector | Type value | Grant type | Key inputs | Key outputs | Status codes |
 |---|---|---|---|---|---|

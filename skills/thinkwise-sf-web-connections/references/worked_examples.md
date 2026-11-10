@@ -25,5 +25,6 @@ certificates, so:
 2. Set `client_certificate_file` to the merged `.pfx` plus `client_certificate_password` on the web
    connection.
 3. Do the OAuth client-credentials token exchange through a web connection endpoint (or
-   `authentication_type = oauth` with an `oauth_server_id`, once the field gap above is resolved) — a
+   `authentication_type = oauth` with an `oauth_server_id`, where the `oauth_server` fields are
+   reachable — see `references/oauth.md`) — a
    Web Connection supports certificates end-to-end where the dedicated OAuth connector does not.

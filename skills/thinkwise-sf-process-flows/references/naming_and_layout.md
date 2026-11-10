@@ -1,6 +1,6 @@
 # Process flow naming conventions and canvas alignment
 
-Loaded on demand from `thinkwise_sf_process_flows`.
+Loaded on demand from `thinkwise-sf-process-flows`.
 
 ## Alignment
 
@@ -16,12 +16,13 @@ agent) to read.
 
 ## Naming
 
-**A process flow's `process_flow_id` must never reuse an existing task's `task_id` or a report's
-`report_id`/`tab_report_id` in the same model.** Nothing in the write API actually rejects this
-collision — staging a `process_flow` with an id identical to an existing task's id was accepted
-without a validation warning — which is exactly why this has to be enforced by discipline rather than
-relied on as a platform guarantee: query existing `task` and `report`/`tab_report` ids in the target
-model first and confirm no overlap before picking a `process_flow_id`.
+**A process flow's `process_flow_id` must never reuse an existing table's `tab_id`, a task's
+`task_id` or a report's `report_id`/`tab_report_id` in the same model** — process flows share one id
+namespace with tables, tasks and reports. The write API doesn't reject the collision (staging a
+`process_flow` with an existing task's id is accepted without a warning), but the model's validation
+then fails it with `val_process_flow_name_not_unique`. Query existing `tab`, `task` and
+`report`/`tab_report` ids first and confirm no overlap before picking a `process_flow_id`; a suffix such
+as `_flow` (`start_work_task_flow`) keeps a flow clear of the task it wraps.
 
 **Before naming a new flow, look at the other process flows already in the model** and match
 whatever local convention they establish — conventions observed vary genuinely by model/team, so
@@ -44,15 +45,24 @@ there is no single universal answer:
 - All observed names are lowercase snake_case — no camelCase, no spaces, ever.
 
 - **If the model has no existing process flows to pattern-match against and no other convention is
-  obvious, don't default silently** — per `thinkwise_sf_base`'s "Shared
+  obvious, don't default silently** — per `thinkwise-sf-base`'s "Shared
   conventions" (ask, don't default), propose plain outcome-descriptive snake_case with no prefix as
   your recommendation (matching general Thinkwise naming guidelines — see
-  `thinkwise_sf_data_model`, purpose over plumbing, same principle as control procedure
+  `thinkwise-sf-data-model`, purpose over plumbing, same principle as control procedure
   naming) and get the user to confirm or correct it before committing to a `process_flow_id`.
 
 ## Translation
 
 The flow's own description, its actions' descriptions, any message text, and process variable
 descriptions are all translatable objects. Don't leave newly-created text in the source language only
-— load `thinkwise_sf_translations` for the `transl_object`/`transl_object_transl`
+— load `thinkwise-sf-translations` for the `transl_object`/`transl_object_transl`
 mechanics and the approval workflow before considering a new process flow finished.
+
+Not every action gets a translation object (type 30): user-facing actions such as `open_document`,
+`execute_task`, `execute_tab_task` and `show_msg` do; `start`/`stop`, `decision`, `execute_system_task`,
+`publish_message` and `web_connection` do not. Query `transl_object` for the flow's actions instead of assuming one per
+action.
+
+Deleting a flow (`task_delete_process_flow`) removes its actions, steps, variables, mappings and
+schedules but leaves the flow's translation object (type 29) and its actions' (type 30) behind as
+orphans — clean them up with `task_delete_unused_transl_objects`.

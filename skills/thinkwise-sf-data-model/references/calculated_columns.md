@@ -1,6 +1,6 @@
 # Calculated columns
 
-Loaded on demand from `thinkwise_sf_data_model`.
+Loaded on demand from `thinkwise-sf-data-model`.
 
 **Default to a real, physically stored column (`calculated_field_type = none`) and only reach for a
 calculated column when the value genuinely cannot be a normal one** — it must always be perfectly
@@ -22,14 +22,26 @@ fact per column" and "Prefer NOT NULL..." above.
 **Writing `calculated_field_type` through the staging API**: pass the raw numeric value (`2` for a
 same-row `calculated_column`), not the string key — `"calculated_column"` is rejected with
 `invalid_input`. Set it together with `calculated_field_query` in the same `stage_resource`/
-`patch_resource` call; `col.mand` typically flips to read-only `false` once the type is non-`none`,
-which is expected. (Instance of the general enum-key-rejection quirk in
-`references/api_write_quirks.md`, but this specific field wasn't called out there.)
+`patch_resource` call, **type first**: `calculated_field_query` is hidden while the type is `none`, so
+an add that sends the query without (or before) the type is refused; an edit of a column that already
+has a type may send the query alone. A commit with the type but no query succeeds anyway and stores
+the Software Factory's example comment as the query — never leave the query for a later write.
+`col.mand` flips to read-only `false` once the type is non-`none` — never send `mand = true` for a
+calculated column. Switching the type back to `none` drops the query. (Instance of the general
+enum-key-rejection quirk in `references/api_write_quirks.md`, but this specific field wasn't called
+out there.)
+
+Where the query lands: the Software Factory stores `calculated_field_query` in the column's
+`col_query` row for the branch's platform (`rdbms_type` 0 on a SQL Server branch) — writing the
+parent `col` fills that row for you (verified through the write API on SF 2026.2). For an additional
+platform on a dual-platform branch, write that platform's `col_query` row directly (it allows add and
+update); hand-written DML must always target `col_query`. See `thinkwise-sf-control-procedures`'
+`references/calculated_columns_query_split.md`.
 
 **PostgreSQL-specific pitfall**: a `calculated_column`'s expression compiles to a
 native generated/persisted column on PostgreSQL, which requires every function used to be
 `IMMUTABLE` — `concat` is `STABLE`, not `IMMUTABLE`, and fails with error `42P17`. See
-`thinkwise_sf_control_procedures`'s `references/sql_dialects.md`
+`thinkwise-sf-control-procedures`'s `references/sql_dialects.md`
 ("PostgreSQL generated/calculated columns require IMMUTABLE functions") for the fix and the
 NULL-handling difference between `||` and `concat`. This does **not** apply to `expression`-type
 columns below — those are correlated subqueries, not stored generated columns.
@@ -112,7 +124,7 @@ invisible.
   at write time — recomputing on every read is wasted work when the inputs rarely change.
 - For a heavy *cross-row* value (a per-row subquery or lookup) on a large grid, store it in a real
   column maintained by a Handler or Trigger when the source changes (see
-  `thinkwise_sf_control_procedures`), instead of an `expression` recomputed on every read.
+  `thinkwise-sf-control-procedures`), instead of an `expression` recomputed on every read.
 - Smoke tests validate expression fields and flag ones that are broken or time out. Run them after
   adding or changing one.
 

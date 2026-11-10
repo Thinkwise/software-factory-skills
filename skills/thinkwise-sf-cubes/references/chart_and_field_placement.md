@@ -1,6 +1,6 @@
 # Cube field placement, pivot axes, and chart settings
 
-Loaded on demand from `thinkwise_sf_cubes`.
+Loaded on demand from `thinkwise-sf-cubes`.
 
 ## Field placement in a view — `cube_view_field`
 
@@ -8,10 +8,10 @@ Places one `cube_field` into exactly one area of exactly one `cube_view`. Confir
 
 | Value | Meaning |
 |---|---|
-| `cube_area_filter` | Restricts the view without becoming an axis |
-| `cube_area_category_row` | Primary drill path — put the broadest dimension first |
-| `cube_area_series_column` | Secondary axis — keep cardinality low or the pivot gets very wide / the chart legend gets illegible |
-| `cube_area_value` | The aggregated number(s) shown |
+| `cube_area_filter` (`3`) | Restricts the view without becoming an axis |
+| `cube_area_category_row` (`1`) | Primary drill path — put the broadest dimension first |
+| `cube_area_series_column` (`2`) | Secondary axis — keep cardinality low or the pivot gets very wide / the chart legend gets illegible |
+| `cube_area_value` (`0`) | The aggregated number(s) shown |
 | `cube_area_menu` | A fifth value present in the schema alongside the four documented UI areas; its exact rendering isn't covered by current docs/community material — likely the "not yet placed on any axis" pool feeding the field picker. Verify in the SF UI on a live row before treating it as equivalent to one of the four areas above. |
 
 **Setting the area**: `task_cube_view_field_area_drag_drop` is confirmed live to take **no
@@ -21,7 +21,7 @@ drop-zone triggered it. Via an MCP connector, don't try to call this task — **
 `cube_view_field.cube_area` directly** with `stage_resource`/`patch_resource`/`commit_resource`; it's
 a plain field, not a snapshot-gated one. **This field has also been seen silently dropping when set
 together with other fields in one combined write** (the general "last field in a combined write can
-drop" quirk — see `thinkwise_sf_data_model`) — after patching `cube_area`, re-read the row
+drop" quirk — see `thinkwise-sf-data-model`) — after patching `cube_area`, re-read the row
 back and confirm the value actually stuck. **Re-tested and fixed**: setting `cube_area`
 *last* among the properties in one combined `stage_resource`/`patch_resource` call (after `order_no` and
 any other field being changed alongside it) avoided the drop entirely — both fields held correctly with
@@ -41,7 +41,10 @@ leaf).
 ### Default filter values — `cube_view_field_filter`
 
 A repeatable child row per allowed/default value, keyed by `(cube_view_id, cube_field_id,
-filter_value)` — only meaningful for a field placed in `cube_area_filter`. This is how a view's
+filter_value)`. It works on a field placed in `cube_area_filter` **and** on one placed in
+`cube_area_category_row` — verified live: a default filter attached to the category (axis) field of a
+funnel view, so one field can be the axis and carry the default filter in the same view; no duplicate
+filter-area field is needed. This is how a view's
 default context (current company, recent years, completed-only transactions) gets modeled. Whatever
 default filter you set here must remain **visible and understandable** to the user — a hidden
 default filter that silently excludes canceled orders or old periods breaks reconciliation even when
@@ -62,7 +65,7 @@ extra scrutiny — a naive `sum` total row on a balance or a ratio field looks f
 ### Conditional layouts on a cube view
 
 `cube_view_field_conditional_layout` — a **cube-specific** conditional-layout family (not a row in
-the generic `conditional_layout` entity the `thinkwise_sf_conditional_layouts` skill
+the generic `conditional_layout` entity the `thinkwise-sf-conditional-layouts` skill
 covers). Confirmed fields: `condition_cube_field_id` (which field the condition evaluates),
 `numeric_condition` (`equal_to`, `not_equal_to`, `greater_than[_or_equal_to]`,
 `smaller_than[_or_equal_to]`, `between`/`not_between`, `is_empty`/`is_not_empty`), `value`/

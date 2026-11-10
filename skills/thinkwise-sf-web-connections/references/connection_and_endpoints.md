@@ -1,6 +1,6 @@
 # Web connection, authentication types, and endpoint setup
 
-Loaded on demand from `thinkwise_sf_web_connections`.
+Loaded on demand from `thinkwise-sf-web-connections`.
 
 ## 1 · The web connection
 
@@ -40,7 +40,7 @@ already wired up with this field populated.
 strictly mandatory at creation vs. safely omittable. Default to setting several fields together in one
 `stage_resource` call, per the tool's own recommended flow ("set the fields you know via properties in
 this call to save a round-trip") — a multi-field drop is a real, confirmed failure mode on some entities
-elsewhere in this skill set (see `thinkwise_sf_base`'s hazard note), but it isn't a
+elsewhere in this skill set (see `thinkwise-sf-base`'s hazard note), but it isn't a
 default assumption to apply pre-emptively here without having actually observed it on `web_connection`.
 Re-read the `fields` block after the combined call to confirm every property landed; only fall back to
 one-field-at-a-time isolation if a drop is actually observed on this entity.
@@ -49,8 +49,8 @@ one-field-at-a-time isolation if a drop is actually observed on this entity.
 
 | Value | Name | Fields used | Notes |
 |---|---|---|---|
-| 0 | `none` | — | Public/unauthenticated API. |
-| 1 | `basic_credentials` | `user_name`, `password` | Sent as `Authorization: Basic`. |
+| 0 | `none` | — | Public/unauthenticated API. Hides `user_name`/`password` (seen on SF 2026.2). |
+| 1 | `basic_credentials` | `user_name`, `password` | Sent as `Authorization: Basic`. Makes both fields mandatory (seen on SF 2026.2). |
 | 2 | `bearer_token` | `bearer_token` | Sent as `Authorization: Bearer <token>`. |
 | 3 | `api_key` | `api_key_name`, `api_key_value`, `api_key_parmtr_location` | Injected as a header or query string param per `api_key_parmtr_location`. |
 | 4 | `managed_identity` | — | Cloud-platform managed identity, no stored secret. Has been an active community feature request specifically for the *HTTP* connector — confirm current behavior for the target cloud (Azure) against the live model/version before depending on it for a web connection. |
@@ -74,7 +74,7 @@ Entity `web_connection_endpoint` — one HTTP call shape under a connection.
 |---|---|---|
 | `web_connection_endpoint_id` | key | Object name, e.g. `get_contacts`. |
 | `endpoint_http_method` | string enum | `GET` · `POST` · `PUT` · `PATCH` · `DELETE` · `HEAD` · `OPTIONS` · `TRACE` — values are the method names themselves, not numeric codes. |
-| `endpoint_path` | string | Appended to `base_url`. `{token}` segments become endpoint input parameters automatically, e.g. `{table}({key})/appl.preview_{file_column}`. |
+| `endpoint_path` | string | Appended to `base_url`, with `{param}` substitutions, e.g. `{table}({key})/appl.preview_{file_column}`. A `{token}` does **not** create the parameter; add each `web_connection_endpoint_parmtr` yourself (see `references/parameters_and_parsing.md`). |
 | `type_of_body` | `Edm.Byte` enum | `multipart_form`=0 · `form_url_encoded`=1 · `json`=2 · `xml`=3 · `yaml`=4 · `plain_text`=5 · `other`=6 · `none`=9. |
 | `content_type_body` | string | `Content-Type` header sent — auto-suggested from `type_of_body`, overridable. |
 | `endpoint_body` | string | Literal request-body template with `{param}` substitutions. |

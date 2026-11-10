@@ -355,7 +355,7 @@ auto-adds mandatory input parameters without defaults, excluding identity column
 - *Update*: one relevant field change; a no-op/unchanged update when the logic detects "nothing
   changed"; a forbidden lifecycle transition; optimistic/concurrency marker behavior where testable;
   a multi-row update (triggers must be set-based — see "Efficient Trigger example" in
-  `thinkwise_sf_control_procedures`'s SQL style guide); history/audit capturing
+  `thinkwise-sf-control-procedures`'s SQL style guide); history/audit capturing
   both the old *and* new value, not just that a change happened.
 - *Delete*: a valid delete; rejection of a referenced/in-use record; soft- vs. physical-delete
   behavior; cascade/cleanup and audit behavior; a multi-row delete.
@@ -409,7 +409,7 @@ Oracle/DB2. Known differences to account for:
 
 - **Oracle's mock fallback behaves differently**: a non-key column left unselected in a mocked table
   can come back `NULL` on Oracle where another platform would apply a fallback/default value — verify
-  the actual generated test code (`task_show_unit_test_code`) rather than assuming parity across
+  the actual generated test code (`task_show_unit_test_code`, in the Software Factory) rather than assuming parity across
   dialects.
 - **Oracle doesn't support mocked views** — mock the underlying tables instead when the target platform
   includes Oracle (see "Tables vs. views" above).
@@ -487,7 +487,8 @@ Then check in this order before concluding the implementation (or the test) is w
 4. **Runtime configuration and deployed generated functionality** — the test database must contain the
    deployed/generated code matching the branch under test; a test run against stale program objects
    produces misleading passes and failures alike.
-5. **Generated unit-test code** (`task_show_unit_test_code`) — confirm the test itself compiles to what
+5. **Generated unit-test code** (`task_show_unit_test_code`, in the Software Factory — it can't be
+   committed through the write API) — confirm the test itself compiles to what
    was intended, not just that it "ran."
 6. **The linked control procedure and its complete generated program-object code** — read the real
    logic, header/footer included, rather than the template in isolation.

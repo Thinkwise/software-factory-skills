@@ -90,7 +90,7 @@ field order by hand when a Grid and Form should track each other closely.
    (`field_on_next_tab` + label/icon) only at genuine concept boundaries; collapse secondary/advanced
    sections with `next_tab_default_expanded = false` — never the primary task or a section with active
    validation errors. When a group/section gets an icon, set `form_next_grp_icon_id`/`next_tab_icon_id`
-   to a suitable one per `thinkwise_sf_icons`'s form-navigation guidance (simple,
+   to a suitable one per `thinkwise-sf-icons`'s form-navigation guidance (simple,
    recognizable at ~16px) rather than an arbitrary pick — but per that skill's own guidance, an icon
    isn't mandatory on every group; add one only where it earns its place (collapsed sections, repeated
    patterns across forms). **Cover the first visible field too** — the leading identity/PK column(s)
@@ -136,7 +136,7 @@ field order by hand when a Grid and Form should track each other closely.
   adjacent to that group's other members, in the same change that adds the column — don't default to
   appending it ungrouped at the end. If no existing group is an obvious semantic fit, ask the user
   which group it belongs in (or whether it needs a new one) — see
-  `thinkwise_sf_base`'s "Ask, don't default" rule — rather than guessing or creating
+  `thinkwise-sf-base`'s "Ask, don't default" rule — rather than guessing or creating
   a new group unilaterally. This includes the **first visible column** of the Form — it's easy to
   treat a leading identity/PK field as exempt from grouping because it "comes before" the first
   semantic group, but a Form where every field is grouped except the very first one is still an

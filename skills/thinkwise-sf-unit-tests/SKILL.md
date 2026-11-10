@@ -1,6 +1,6 @@
 ---
 name: thinkwise-sf-unit-tests
-description: Reference guide and workflow for suggesting and creating Thinkwise Software Factory unit tests (unit_test, data_set, and their child entities) via an MCP connector with Software Factory access. Use whenever a control procedure needs test coverage, or the user asks to suggest, review, or generate unit tests. Drives a propose → confirm → build process: analyze the target's logic, propose a scenario list grounded in its actual branches, get explicit sign-off, then build.
+description: "Reference guide and workflow for suggesting and creating Thinkwise Software Factory unit tests (unit_test, data_set, and their child entities) via an MCP connector with Software Factory access. Use whenever a control procedure needs test coverage, or the user asks to suggest, review, or generate unit tests. Drives a propose → confirm → build process: analyze the target's logic, propose a scenario list grounded in its actual branches, get explicit sign-off, then build."
 ---
 
 # Thinkwise Software Factory Unit Tests
@@ -13,7 +13,7 @@ tests** tab / Quality → Unit tests), version-controlled and deployed like any 
 artifact — not a hand-run SQL script and not a GUI recording.
 
 **Don't confuse this with other Thinkwise testing mechanisms** — see "Unit test or another test?"
-below. In particular: `sample_data_set` (`manage_datamodel` domain) is unrelated — domain-level example
+below. In particular: `sample_data_set` (a data-model entity) is unrelated — domain-level example
 values, not test mock data. A separate "recorded GUI test case" feature exists only as unexposed
 metamodel concepts (`test_case`, `test_scenario`, `smoke_test`, …) in most connectors — confirm live
 before assuming it's reachable; don't build around it if it isn't (see
@@ -32,7 +32,7 @@ straight to phase 3.
 2. **Confirm** — present the scenario list to the user before writing anything. Each scenario states
    the condition and the expected result in natural language, no SQL. Wait for explicit approval; treat
    feedback as a revision loop, not a one-shot. Never generate model objects before this sign-off —
-   the `thinkwise_sf_base` "Confirm-before-mutate" convention applied at this skill's
+   the `thinkwise-sf-base` "Confirm-before-mutate" convention applied at this skill's
    own grain.
 3. **Build** — once approved, create the `unit_test` row(s) and their input/output/filter/message
    children via the connector's staging flow (`stage_resource` → `patch_resource` → `commit_resource`,
@@ -41,13 +41,11 @@ straight to phase 3.
 
 ## Domain and entity discovery
 
-Unit-test authoring lives in a domain confirmed live as **`manage_unit_tests`** — try this directly
-first via `get_entity_definition`/`search_domain_capabilities`; only fall back to
-`search_capabilities`/`get_available_domains` on an `entity_set_not_found`/`domain_not_found`-style
-rejection. Confirmed live: `manage_control_procedures`, `manage_datamodel`, and
-`manage_cubes` do **not** additionally expose unit-test authoring entities — `manage_unit_tests` is
-where all of it lives, alongside a `manage_datamodel`-level `tab`/`task`/`subroutine`/`process_flow`
-lookup for finding the object under test in the first place.
+Domain: split-domain instances `manage_unit_tests`; single-domain `sf/software_development`;
+otherwise find it with `search_domain_capabilities`. **(Indicium · split-domain)** All unit-test
+authoring entities live in `manage_unit_tests` only — `manage_control_procedures`, `manage_datamodel`
+and `manage_cubes` don't expose them; look up the object under test (`tab`/`task`/`subroutine`/
+`process_flow`) in the data-model domain.
 
 **Core entities** (full field tables, enums, and tasks in `references/entity_reference.md`):
 
@@ -76,12 +74,12 @@ property to pull them in.
 
 1. **Identify the target precisely** — the exact `control_proc_id` (and `tab_id`/`task_id`/
    `report_id`/`process_flow_id`/`process_action_id`/`subroutine_id` depending on type) driving the
-   logic under test. Read the generated code (see `thinkwise_sf_control_procedures`
+   logic under test. Read the generated code (see `thinkwise-sf-control-procedures`
    for how to find the real control procedure behind an object) so the scenario list in phase 1 is
    grounded in what the code actually branches on, not a guess. **Before scoping candidates by scanning
    generated program objects for a code type (e.g. every table with a Default enabled), filter
    `control_proc` by `control_proc_type` instead** (see
-   `thinkwise_sf_control_procedures`): `program_object_item` (`1`) is hand-written
+   `thinkwise-sf-control-procedures`): `program_object_item` (`1`) is hand-written
    logic for one specific object and is what's actually worth testing; `program_object` (`0`) and
    `meta_definition` (`2`) are shared generators/framework infrastructure that many generated objects
    point at without containing any object-specific logic of their own. Scanning generated objects
@@ -94,25 +92,24 @@ property to pull them in.
    on `opportunity`, fires on any column change" vs. "TRIGGER_UPD on `opportunity`, cascades to
    `activity`") and ask the user to confirm which one is the actual target before proceeding.
 2. **Create the `unit_test` row.** Key: `unit_test_id` (purpose-driven, snake_case — see naming below).
-   **`unit_test.model_id`/`branch_id` are hidden and reject direct writes on a fresh top-level insert,
-   and a dependent add under `control_proc` (which does resolve that context) has still been found to
-   reject `type_of_object` as an unknown property despite showing it as editable.** The reliable path,
-   confirmed across every type tried — **copy any existing `unit_test` row via `task_copy_unit_test`
-   and override its target fields in the same call** (`to_unit_test_id`, `unit_test_type_id`,
-   `type_of_object`, the target field, `control_proc_id`) — see `references/entity_reference.md` for the
-   full mechanics and why the dependent-add path falls short. After the copy, check for stray copied
-   input/output rows before adding new ones (a column name shared between the source and target table
-   for unrelated reasons can carry a row across even when the object types differ).
+   **Add it as a plain dependent record under `branch`** (verified on SF 2026.2) — the model and branch
+   come from the parent; the commit needs `unit_test_type_id`. Order the properties: `unit_test_type_id`
+   first (setting it clears `type_of_object`), then `type_of_object` where the type needs it (`DEFAULT`,
+   `LAYOUT`, `BADGE`; a `TASK` test sets it itself and answers `field_not_editable` if you send it: `0` table, `11` task, `10` report — sent with `value_kind: "data"`), then the
+   target key (`tab_id`/`task_id`/
+   `report_id` stay read-only until `type_of_object` is set) — see `references/entity_reference.md`
+   for the per-type rules. `task_copy_unit_test` is only for cloning an existing test (step 8).
    Set `unit_test_type_id` (`DEFAULT`, `LAYOUT`, `CONTEXT`, `BADGE`, `TASK`, `PROCESS`, `SUBROUTINE`,
    `HANDLE_INSERT`/`HANDLE_UPDATE`/`HANDLE_DELETE`, `TRIGGER_INS`/`TRIGGER_UPD`/`TRIGGER_DEL` — confirm
    the full list live via `unit_test_type`, don't assume this is exhaustive) and `type_of_object` (the
    *target kind* — Table, Task, Process flow, Subroutine, … — a large global enum; confirm the right
-   value via `unit_test_type_object` rather than guessing, though `0`=Table, `11`=Task, `30`=Process
+   value via `unit_test_type_object` (a global catalogue — no `model_id` filter) rather than
+   guessing, though `0`=Table, `11`=Task, `30`=Process
    flow, and `231`=Subroutine have been observed repeatedly across real models). Fill the one scalar
    key matching that kind (`tab_id` for table-scoped types, `task_id` for `TASK`, `subroutine_id` for
    `SUBROUTINE`, `process_flow_id`/`process_action_id` for `PROCESS`, `report_id` for a report-context
    test) plus `control_proc_id`, a full-sentence `unit_test_description` (never leave this vague — see
-   naming below), and `active = true`.
+   naming below). `active` is read-only — toggle it only with the activate/deactivate tasks (step 8).
 3. **Add input rows** for every column/parameter the scenario controls and **output rows** for every
    value being asserted. The entities in the table above (`unit_test_col_input`/`_col_output`,
    `unit_test_task_parmtr_input`/`_output`, …) describe the underlying storage and are correct for
@@ -120,14 +117,18 @@ property to pull them in.
    `unit_test_input_parmtr_overview`/`unit_test_output_parmtr_overview` instead**, added as a dependent
    record under `unit_test`. Set `parmtr_id` to the column/task-parameter/subroutine-parameter/
    fixed-parameter id (e.g. `cursor_from_col_id`) and the row resolves which underlying child entity it
-   really is. See `references/entity_reference.md` for the full mechanics, including that leaving a
-   column at its natural blank/null state means *not creating a row for it at all* (input rows are
-   mandatory-valued, not nullable placeholders). Each output row gets a `unit_test_condition`
-   (16-value enum — `equal_to`, `smaller_than`,
+   really is; the Software Factory fills `unit_test_parmtr_id` and `type_of_object` itself — never send
+   those two. **Read the test's existing input rows first**: the Software Factory supplies some itself
+   (one per mandatory task parameter on a `TASK` test — virtual until edited — and one per mandatory
+   non-identity, non-calculated column on a `TRIGGER_INS` test). Edit `input_value` on a row that
+   shows — an add for the same parameter collides — and add only the rest. See `references/entity_reference.md` for
+   the full mechanics, including how to express a blank/null input. Each output row gets a
+   `unit_test_condition` (16-value enum — `equal_to`, `smaller_than`,
    `greater_than_or_equal_to`, `between`, `contains`, `is_empty`, … — full list in the reference file;
    note it's **not** the 8-value set a naive guess produces, e.g. `smaller_than`/`is_empty`, not
-   `less_than`/`is_null`). For a default that only reacts when a specific column changed, add a
-   `unit_test_fixed_parmtr_input` row with `unit_test_parmtr_id = 'cursor_from_col_id'`.
+   `less_than`/`is_null`), sent as its number. For a default that only reacts when a specific column
+   changed, add an input row with `parmtr_id = 'cursor_from_col_id'` (it lands in
+   `unit_test_fixed_parmtr_input`).
    **Before typing a placeholder/sentinel value for an id-shaped column or parameter** (one ending
    `_id`, e.g. an owner/contact/foreign-key reference), confirm the backing domain's actual data type
    first — many id domains are numeric (`int`), not string, despite the naming convention; a string
@@ -135,7 +136,11 @@ property to pull them in.
    **For a `TRIGGER_INS`/`TRIGGER_UPD`/`TRIGGER_DEL` test, identify the row via `unit_test_col_filter`
    instead of an ordinary input row** — a primary-key column is rejected as a regular input on this
    type. `unit_test_col_filter` is directly addable at the top level (unlike the overview entities
-   above); see `references/entity_reference.md`.
+   above); see `references/entity_reference.md`. An update or delete test without a filter has no row
+   to act on.
+   **The test database starts empty.** Rows the logic needs come from mock data (step 5) or
+   `preparation_query`: insert every mandatory column that has no identity or default, parents before
+   children.
 4. **Add `unit_test_msg` rows** for any expected validation/warning message on the sad-flow path.
    **Confirm the referenced `msg_id` actually exists first** — control-procedure code can call a
    message id that was never created (a real bug to flag, not something to build around silently); see
@@ -173,7 +178,7 @@ property to pull them in.
    specific numbers/names chosen so the user can catch a wrong boundary or a misleading sentinel value
    before the test is built, not after it fails.
 6. **Multi-dialect models**: if `branch_rdbms_type` (see
-   `thinkwise_sf_control_procedures`) returns more than one row, the generic
+   `thinkwise-sf-control-procedures`) returns more than one row, the generic
    `unit_test.preparation_query`/`assertion_query` may not be portable — add a `unit_test_query` row
    per `rdbms_type` needing different SQL, same pattern as `control_proc_template` per dialect.
 7. **Run it.** `task_add_job_to_test_unit_test_single` (bound to `unit_test` or
@@ -188,14 +193,17 @@ property to pull them in.
    for the actual raw string the run produced. **A `failed` result despite the message/assertion check
    itself reporting success can also mean a `should_rollback` mismatch** — its outcome tracking is only
    confirmed reliable for `HANDLE_UPDATE`; default it to `false` for `TRIGGER_*`/`TASK`/`HANDLE_INSERT`/
-   `HANDLE_DELETE` tests (see `references/entity_reference.md`). `task_show_unit_test_code` (param `rdbms_type`) previews the generated test SQL without
-   running it — useful to sanity-check a test before the first run. `task_cancel_job` stops a running
-   batch.
+   `HANDLE_DELETE` tests (see `references/entity_reference.md`). **Running a test needs a deployed
+   database in the runtime configuration it uses**; without one the job and its result end as
+   `cancelled`. `task_show_unit_test_code` (param `rdbms_type`) previews the generated test SQL without
+   running it — use it in the Software Factory; through the write API it can't be committed.
+   `task_cancel_job` stops a running batch.
 8. **Lifecycle housekeeping**: `task_copy_unit_test` (clone the definition, not the mock data link, to a
-   new id — also the primary creation mechanism per step 2 above; re-check copied input/output rows
-   after a cross-table copy), `task_rename_unit_test`, `task_delete_unit_test`, `task_activate_unit_test`/
+   new id; re-check copied input/output rows after a cross-table copy), `task_rename_unit_test`, `task_delete_unit_test`, `task_activate_unit_test`/
    `task_deactivate_unit_test`. Prefer deactivating a temporarily-broken test over deleting it — see
-   "Recommended team standard" in the design guide.
+   "Recommended team standard" in the design guide. A new test has no `transl_object` row
+   right after creation (look again after the next definition generation). A deleted test leaves its
+   `transl_object` rows behind — delete them too (see `thinkwise-sf-translations`).
 
 **AI-assisted first draft**: `task_enrichment_generate_unit_test` (bound to `unit_test`; mandatory
 `description`, `unit_test_type_id`, `type_of_object`; optional `tab_id`/`task_id`/`report_id`/
@@ -231,6 +239,14 @@ proposed — it's a drafting aid, not a substitute for the propose/confirm steps
   it to a test rather than leaving it behind.
 - **Identify the exact `control_proc_id`/target object before writing any test** — read the generated
   code, don't guess which branch a vague description refers to.
+- **Create a new test with a plain add under `branch`**: `unit_test_type_id`, then `type_of_object`
+  where the type needs it, then the target key (step 2).
+- **Every test checks something** — an expected output, an expected message or an assertion. A test
+  without any of them passes without proving anything. A `TASK` test's expected output needs a task
+  parameter with `task_output` set.
+- **Send each query in the same write as its `use_preparation_query`/`use_assertion_query` flag**, flag
+  first — the query field stays hidden until its flag is set. The two queries run in one batch: never
+  declare the same variable in both ("already been declared").
 - **`unit_test_condition` has 16 values, not 8** — `smaller_than`/`smaller_than_or_equal_to`/
   `is_empty`/`is_not_empty`, not `less_than`/`less_than_or_equal_to`/`is_null`/`is_not_null`. Confirm
   against `references/entity_reference.md` rather than guessing from habit.
@@ -238,7 +254,8 @@ proposed — it's a drafting aid, not a substitute for the propose/confirm steps
   says *what kind of test* (`DEFAULT`, `TASK`, …); the former says *what kind of object* is under test
   (Table, Task, Process flow, Subroutine, …) and picks which scalar key field on `unit_test` is
   populated. Confirm the value live via `unit_test_type_object` for anything beyond the four commonly
-  observed (`0`=Table, `11`=Task, `30`=Process flow, `231`=Subroutine).
+  observed (`0`=Table, `11`=Task, `30`=Process flow, `231`=Subroutine), and send it with
+  `value_kind: "data"`.
 - **No child entity is reachable from `unit_test` via `$expand`.** Query every `unit_test_col_*`/
   `*_parmtr_*`/`unit_test_msg` row directly, filtered by `unit_test_id`.
 - **Mock data rows ARE writable through this API**, given the right table-level permissions on

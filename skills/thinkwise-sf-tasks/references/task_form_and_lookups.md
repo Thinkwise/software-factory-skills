@@ -1,6 +1,6 @@
 # Task look-ups and form setup
 
-Loaded on demand from `thinkwise_sf_tasks`.
+Loaded on demand from `thinkwise-sf-tasks`.
 
 ## Task look-ups (`task_ref` / `task_ref_col`)
 
@@ -46,7 +46,7 @@ behalf; this is exactly the kind of choice "Plan first" above should surface bef
 
 The Task code type reuses the **same** Default/Layout business-logic variables tables/rows do, just
 scoped to a task parameter instead of a column (`@[task_parmtr_id]` in place of `@[col_id]`) — see
-`thinkwise_sf_control_procedures`'s `references/code_type_variables.md` for
+`thinkwise-sf-control-procedures`'s `references/code_type_variables.md` for
 the exact per-direction variable names before writing the template body.
 
 ### Consider `task_conditional_layout` for new parameters — but only where it's warranted
@@ -61,12 +61,12 @@ nothing worth highlighting; say so and add nothing rather than inventing a margi
 
 **Never add a `task_conditional_layout` without checking with the user first** — present the candidate
 parameter(s), the condition, and what it would communicate, and get explicit confirmation before
-creating anything. If this task is part of a larger plan (e.g. from `thinkwise_sf_build_planner`),
+creating anything. If this task is part of a larger plan (e.g. from `thinkwise-sf-build-planner`),
 fold the candidate into that plan and get the **plan** confirmed before finalizing it, not as a silent
 addendum once the task is being built.
 
 For the actual mechanics — field reference, the condition enum, `task_variant_task_conditional_layout`
-per-variant overrides, and known gaps — see `thinkwise_sf_conditional_layouts`. This
+per-variant overrides, and known gaps — see `thinkwise-sf-conditional-layouts`. This
 section only decides *whether* one is warranted; that skill covers *how* to build it.
 
 **Both gates, every time**: the task-level `use_layouts`/`use_defaults` flag on `task` *and* the
